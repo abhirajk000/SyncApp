@@ -12,26 +12,9 @@ struct SettingsView: View {
     @AppStorage("historyLimit")        private var historyLimit = 100
     @AppStorage("startHidden")         private var startHidden = false
     @State private var launchAtLogin = false
-    @State private var serverURL = KeychainService.shared.serverURL
 
     var body: some View {
         Form {
-            // ── Server ────────────────────────────────────────────────────────
-            Section("Server") {
-                HStack {
-                    TextField("Server URL", text: $serverURL)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Save") {
-                        KeychainService.shared.serverURL = serverURL
-                        APIClient.shared.baseURL = serverURL
-                    }
-                    .buttonStyle(.bordered)
-                }
-                Text("WebSocket and API endpoint for your SyncBridge server.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
             // ── Sync ──────────────────────────────────────────────────────────
             Section("Clipboard Sync") {
                 Toggle("Sync clipboard automatically", isOn: $syncEnabled)

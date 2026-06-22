@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 
 data class AppUiState(
     val isAuthenticated: Boolean = false,
-    val serverUrl: String = "",
     val connected: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
@@ -37,10 +36,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val uploader = app.fileUploader
 
     private val _state = MutableStateFlow(
-        AppUiState(
-            isAuthenticated = api.isAuthenticated,
-            serverUrl = api.serverUrl,
-        ),
+        AppUiState(isAuthenticated = api.isAuthenticated),
     )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
@@ -107,12 +103,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun logout() {
         api.logout()
         SyncClipboardService.stop(getApplication())
-        _state.value = AppUiState(serverUrl = api.serverUrl)
-    }
-
-    fun setServerUrl(url: String) {
-        api.serverUrl = url
-        _state.update { it.copy(serverUrl = api.serverUrl) }
+        _state.value = AppUiState()
     }
 
     fun sendText(text: String) {

@@ -8,8 +8,8 @@ import {
   IconLogout,
   IconPin,
   IconSettings,
-  IconSync,
 } from "./Icons";
+import { AppBrand } from "./AppBrand";
 
 export type NavId =
   | "dashboard"
@@ -49,12 +49,7 @@ export function AppSidebar({ active, onNavigate, onLogout }: Props) {
   return (
     <>
       <aside className="ds-sidebar">
-        <div className="ds-brand">
-          <div className="ds-brand-icon">
-            <IconSync size={18} />
-          </div>
-          <span className="ds-brand-name">SyncBridge</span>
-        </div>
+        <AppBrand />
         <nav className="ds-nav">
           {NAV.map((item) => (
             <button

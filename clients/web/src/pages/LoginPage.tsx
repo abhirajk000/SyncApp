@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { getServerUrl, setServerUrl, unlock } from "../api";
-import { AppButton, AppCard, AppInput } from "../components";
+import { unlock } from "../api";
+import { AppButton, AppCard, AppIcon, AppInput, AppLoader } from "../components";
 
 interface Props {
   onSuccess: () => void | Promise<void>;
@@ -16,7 +16,6 @@ export function LoginPage({ onSuccess }: Props) {
     setError(null);
     setLoading(true);
     try {
-      setServerUrl(getServerUrl());
       await unlock(pin);
       setPin("");
       await onSuccess();
@@ -36,11 +35,9 @@ export function LoginPage({ onSuccess }: Props) {
     <div className="ds-login-wrap ds-app">
       <AppCard className="ds-login-card">
         <div className="ds-login-hero">
-          <div className="ds-login-hero-icon">
-            <img src="/icon.png" alt="" />
-          </div>
+          <AppIcon size="lg" className="ds-login-hero-icon" alt="" />
           <h1 className="ds-login-title">SyncBridge</h1>
-          <p className="ds-login-subtitle">Enter your PIN to unlock — trusted for 7 days on this browser</p>
+          <p className="ds-login-subtitle">Enter your PIN to unlock</p>
         </div>
 
         <form className="ds-login-form" onSubmit={handleSubmit}>
@@ -56,7 +53,14 @@ export function LoginPage({ onSuccess }: Props) {
             className="ds-login-pin"
           />
           <AppButton type="submit" block size="lg" disabled={loading || !pin}>
-            {loading ? "Unlocking…" : "Unlock"}
+            {loading ? (
+              <span className="ds-btn-busy">
+                <AppLoader variant="inline" label="Unlocking" />
+                Unlocking…
+              </span>
+            ) : (
+              "Unlock"
+            )}
           </AppButton>
         </form>
       </AppCard>

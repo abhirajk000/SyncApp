@@ -1,3 +1,5 @@
+import { AppIcon } from "./AppIcon";
+
 interface Props {
   size?: "sm" | "md" | "lg";
   showName?: boolean;
@@ -8,11 +10,7 @@ interface Props {
 export function AppBrand({ size = "sm", showName = true, className = "", style }: Props) {
   return (
     <div className={`ds-brand ${className}`.trim()} style={style}>
-      <img
-        src="/icon.png"
-        alt="SyncBridge"
-        className={`ds-brand-icon-img ds-brand-icon-img--${size}`}
-      />
+      <AppIcon size={size} alt="" />
       {showName && <span className="ds-brand-name">SyncBridge</span>}
     </div>
   );

@@ -181,10 +181,7 @@ private fun MainNavHost(nav: NavHostController, vm: AppViewModel, modifier: Modi
         }
         composable(MainTab.Settings.route) {
             SettingsScreen(
-                serverUrl = state.serverUrl,
                 connected = state.connected,
-                onServerUrlChange = vm::setServerUrl,
-                onSaveServer = { vm.setServerUrl(state.serverUrl) },
                 onLogout = vm::logout,
             )
         }

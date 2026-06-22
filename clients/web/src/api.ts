@@ -1,26 +1,12 @@
-const DEFAULT_SERVER =
-  import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+const DEFAULT_SERVER = (
+  import.meta.env.VITE_API_URL ?? "https://sync.abhiraj.xyz"
+).replace(/\/$/, "");
 
-/** Old API hosts — auto-migrate to DEFAULT_SERVER (same-origin via sync.abhiraj.xyz). */
-const LEGACY_API_HOSTS = new Set([
-  "api.abhiraj.xyz",
-  "api.sync.abhiraj.xyz",
-]);
-
-function normalizeServerUrl(url: string): string {
-  const trimmed = url.trim().replace(/\/$/, "");
-  if (!trimmed) return DEFAULT_SERVER;
-  try {
-    const { hostname } = new URL(trimmed);
-    if (LEGACY_API_HOSTS.has(hostname)) return DEFAULT_SERVER;
-  } catch {
-    return DEFAULT_SERVER;
-  }
-  return trimmed;
+export function getServerUrl(): string {
+  return DEFAULT_SERVER;
 }
 
 const KEYS = {
-  serverUrl: "syncbridge.serverUrl",
   deviceId: "syncbridge.deviceId",
   accessToken: "syncbridge.accessToken",
   refreshToken: "syncbridge.refreshToken",
@@ -87,20 +73,6 @@ function ensureDeviceId(): string {
     localStorage.setItem(KEYS.deviceId, id);
   }
   return id;
-}
-
-export function getServerUrl(): string {
-  const stored = readAuth(KEYS.serverUrl);
-  if (!stored) return DEFAULT_SERVER;
-  const normalized = normalizeServerUrl(stored);
-  if (normalized !== stored) {
-    writeAuth(KEYS.serverUrl, normalized);
-  }
-  return normalized;
-}
-
-export function setServerUrl(url: string): void {
-  writeAuth(KEYS.serverUrl, normalizeServerUrl(url));
 }
 
 export function getAccessToken(): string | null {

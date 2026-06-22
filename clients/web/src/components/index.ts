@@ -1,5 +1,7 @@
 export { AppButton } from "./AppButton";
 export { AppBrand } from "./AppBrand";
+export { AppIcon } from "./AppIcon";
+export { AppLoader } from "./AppLoader";
 export { AppInput } from "./AppInput";
 export { AppCard } from "./AppCard";
 export { AppModal } from "./AppModal";

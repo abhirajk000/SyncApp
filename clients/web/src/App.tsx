@@ -9,8 +9,10 @@ import {
   restoreSession,
 } from "./api";
 import {
+  AppButton,
   AppHeader,
   AppLayout,
+  AppLoader,
   AppModal,
   AppSidebar,
   type NavId,
@@ -27,7 +29,6 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
 import { relativeTime } from "./lib/format";
-import { AppButton } from "./components";
 
 const ws = new SyncBridgeWS();
 
@@ -146,11 +147,7 @@ function AppShell() {
   }
 
   if (booting) {
-    return (
-      <div className="ds-login-wrap ds-app">
-        <p className="ds-subtitle">Loading…</p>
-      </div>
-    );
+    return <AppLoader label="Starting up…" />;
   }
 
   if (!authed) {

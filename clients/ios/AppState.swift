@@ -5,16 +5,13 @@ import Foundation
 
 @MainActor
 final class AppState: ObservableObject {
-    static let defaultServerURL = "http://localhost:8080"
+    static let defaultServerURL = "https://sync.abhiraj.xyz"
 
     @Published var isAuthenticated = false
     @Published var errorMessage: String?
     @Published var latestClipboardPopup: ClipboardEntry?
 
-    var serverURL: String {
-        get { UserDefaults.standard.string(forKey: Keys.serverURL) ?? Self.defaultServerURL }
-        set { UserDefaults.standard.set(newValue, forKey: Keys.serverURL) }
-    }
+    var serverURL: String { Self.defaultServerURL }
 
     var accessToken: String? {
         UserDefaults.standard.string(forKey: Keys.accessToken)

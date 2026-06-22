@@ -1,7 +1,8 @@
 /* Premium component system */
 
 .ds-app {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
   background: var(--gradient-bg);
   background-attachment: fixed;
   color: var(--color-text);
@@ -9,7 +10,12 @@
   -webkit-font-smoothing: antialiased;
 }
 
-.ds-shell { display: flex; min-height: 100vh; }
+.ds-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 
 /* ── Sidebar (desktop) ─────────────────────────────────────── */
 .ds-sidebar {
@@ -18,13 +24,26 @@
   flex-direction: column;
   padding: var(--space-5);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
   background: var(--glass-bg);
   backdrop-filter: blur(var(--blur-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass));
   border-right: 1px solid var(--glass-border);
 }
 
-.ds-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.ds-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 
 .ds-header {
   height: var(--header-height);
@@ -41,7 +60,13 @@
   z-index: 10;
 }
 
-.ds-content { flex: 1; padding: var(--space-8); overflow: auto; }
+.ds-content {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-8);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 .ds-content-narrow { max-width: 880px; margin: 0 auto; width: 100%; }
 
 /* ── Typography ────────────────────────────────────────────── */
@@ -132,6 +157,12 @@
 .ds-btn--danger { background: var(--color-danger-subtle); color: var(--color-danger); }
 .ds-btn--sm { padding: var(--space-2) var(--space-4); font-size: var(--text-xs); border-radius: var(--radius-sm); }
 .ds-btn--lg { padding: var(--space-4) var(--space-8); font-size: var(--text-base); }
+.ds-btn-busy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
 .ds-btn--block { width: 100%; }
 
 /* ── Inputs ────────────────────────────────────────────────── */
@@ -388,6 +419,151 @@
 .ds-skeleton--title { height: 1.5rem; width: 40%; margin-bottom: var(--space-4); }
 .ds-skeleton--row { height: 3.5rem; margin-bottom: var(--space-3); }
 
+/* ── Loader ────────────────────────────────────────────────── */
+.ds-loader-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  position: relative;
+  overflow: hidden;
+  animation: ds-fade-in 0.4s var(--ease-out);
+}
+.ds-loader-screen::before,
+.ds-loader-screen::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.ds-loader-screen::before {
+  width: 520px;
+  height: 520px;
+  top: -180px;
+  right: -120px;
+  background: radial-gradient(circle, var(--color-primary-glow) 0%, transparent 68%);
+  animation: ds-loader-float 8s ease-in-out infinite;
+}
+.ds-loader-screen::after {
+  width: 380px;
+  height: 380px;
+  bottom: -120px;
+  left: -80px;
+  background: radial-gradient(circle, rgba(79, 70, 229, 0.14) 0%, transparent 68%);
+  animation: ds-loader-float 10s ease-in-out infinite reverse;
+}
+
+.ds-loader-orbit {
+  position: relative;
+  width: 7.5rem;
+  height: 7.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.ds-loader-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-primary-glow) 0%, transparent 70%);
+  animation: ds-loader-pulse 2.2s ease-in-out infinite;
+}
+.ds-loader-icon {
+  position: relative;
+  z-index: 2;
+  animation: ds-loader-breathe 2.2s ease-in-out infinite;
+}
+.ds-loader-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--color-primary);
+  border-right-color: rgba(13, 148, 136, 0.35);
+  animation: ds-loader-spin 1.1s linear infinite;
+}
+.ds-loader-ring::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-bottom-color: var(--color-secondary);
+  border-left-color: rgba(79, 70, 229, 0.25);
+  animation: ds-loader-spin 1.6s linear infinite reverse;
+}
+
+.ds-loader-brand {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  z-index: 1;
+}
+.ds-loader-label {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  z-index: 1;
+}
+.ds-loader-bar {
+  width: min(180px, 60vw);
+  height: 4px;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+  z-index: 1;
+}
+.ds-loader-bar-fill {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--gradient-primary);
+  animation: ds-loader-bar 1.4s var(--ease-out) infinite;
+}
+
+.ds-loader--inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+.ds-loader-spinner {
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ds-loader-spin 0.7s linear infinite;
+}
+
+@keyframes ds-loader-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes ds-loader-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+@keyframes ds-loader-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+@keyframes ds-loader-float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(12px, 18px); }
+}
+@keyframes ds-loader-bar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
 /* ── Toast ─────────────────────────────────────────────────── */
 .ds-toast-container {
   position: fixed;
@@ -456,21 +632,45 @@
   margin-bottom: var(--space-8);
 }
 .ds-login-hero-icon {
-  width: 4rem;
-  height: 4rem;
   margin: 0 auto var(--space-4);
+}
+
+/* ── App icon ──────────────────────────────────────────────── */
+.ds-app-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--color-primary-subtle);
   border-radius: var(--radius-lg);
-  padding: 0.5rem;
+  flex-shrink: 0;
 }
-.ds-login-hero-icon img {
+.ds-app-icon img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
+.ds-app-icon--sm {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0.35rem;
+  border-radius: var(--radius-md);
+}
+.ds-app-icon--md {
+  width: 3rem;
+  height: 3rem;
+  padding: 0.4rem;
+}
+.ds-app-icon--lg {
+  width: 4rem;
+  height: 4rem;
+  padding: 0.5rem;
+}
+
+/* ── Brand ─────────────────────────────────────────────────── */
+.ds-brand { display: flex; align-items: center; gap: var(--space-3); }
+.ds-brand-name { font-size: var(--text-lg); font-weight: 800; letter-spacing: -0.02em; }
+.ds-header-icon { display: none; }
+
 .ds-login-title {
   font-size: var(--text-2xl);
   font-weight: 800;
@@ -488,21 +688,6 @@
   flex-direction: column;
   gap: var(--space-5);
 }
-
-/* ── Brand ─────────────────────────────────────────────────── */
-.ds-brand { display: flex; align-items: center; gap: var(--space-3); }
-.ds-brand-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-md);
-  background: var(--gradient-primary);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px var(--color-primary-glow);
-}
-.ds-brand-name { font-size: var(--text-lg); font-weight: 800; letter-spacing: -0.02em; }
 
 /* ── Grid ──────────────────────────────────────────────────── */
 .ds-grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-5); }
@@ -698,12 +883,23 @@
 
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .ds-shell { flex-direction: column; }
+  .ds-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
   .ds-sidebar {
     display: none;
   }
+  .ds-main {
+    overflow: visible;
+    min-height: auto;
+  }
+  .ds-header-icon { display: flex; }
   .ds-bottom-nav { display: flex; }
   .ds-content {
+    overflow: visible;
     padding: var(--space-5);
     padding-bottom: calc(var(--bottom-nav-height) + var(--space-6));
   }

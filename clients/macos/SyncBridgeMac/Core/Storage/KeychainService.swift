@@ -101,9 +101,11 @@ final class KeychainService {
     }
 
     var serverURL: String {
-        get { get(.serverURL) ?? "http://localhost:8080" }
-        set { set(newValue, for: .serverURL) }
+        get { Self.defaultServerURL }
+        set { /* fixed production endpoint */ }
     }
+
+    static let defaultServerURL = "https://sync.abhiraj.xyz"
 
     var userId: String? {
         get { get(.userId) }
