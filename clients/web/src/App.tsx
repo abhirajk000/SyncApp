@@ -179,7 +179,7 @@ function AppShell() {
   function renderPage() {
     switch (nav) {
       case "clipboard":
-        return <HomePage onNavigate={setNav} />;
+        return <HomePage />;
       case "pinned":
         return <PinnedPage />;
       case "send":
