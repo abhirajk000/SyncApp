@@ -24,7 +24,6 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { SendPage } from "./pages/SendPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { NetworkPage } from "./pages/NetworkPage";
 import { DevicesPage } from "./pages/DevicesPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
@@ -105,9 +104,7 @@ function AppShell() {
     };
     ws.onMessage = (type, payload) => {
       if (type === "signal.peer") {
-        if (networkService.handleSignalPeer(payload)) {
-          toastRef.current("Nearby device available", "success");
-        }
+        networkService.handleSignalPeer(payload);
       }
       if (type === "clipboard.new") {
         const entry = payloadToClipboardEntry(payload);
@@ -188,16 +185,12 @@ function AppShell() {
       case "files":
         return <FilesPage />;
       case "settings":
-        if (settingsView === "network") {
-          return <NetworkPage onBack={() => setSettingsView("main")} />;
-        }
         if (settingsView === "devices") {
           return <DevicesPage onBack={() => setSettingsView("main")} />;
         }
         return (
           <SettingsPage
             onLogout={logout}
-            onOpenNetwork={() => setSettingsView("network")}
             onOpenDevices={() => setSettingsView("devices")}
           />
         );

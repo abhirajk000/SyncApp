@@ -30,17 +30,21 @@ struct SyncBridgeIOSApp: App {
             }
             .onChange(of: appState.isAuthenticated) { _, authed in
                 if authed {
+                    appState.startClipboardMonitor()
                     Task { await appState.loadLatestClipboard() }
                     connectWS()
                 } else {
+                    appState.stopClipboardMonitor()
                     wsClient.disconnect()
                 }
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active, appState.isAuthenticated {
+                    appState.startClipboardMonitor()
                     Task { await appState.loadLatestClipboard() }
                     connectWS()
                 } else if phase == .background {
+                    appState.stopClipboardMonitor()
                     wsClient.disconnect()
                 }
             }
@@ -50,6 +54,7 @@ struct SyncBridgeIOSApp: App {
                     appState.applyEntryToPasteboard(entry)
                 }
                 if appState.isAuthenticated {
+                    appState.startClipboardMonitor()
                     Task { await appState.loadLatestClipboard() }
                     connectWS()
                 }

@@ -1490,6 +1490,98 @@
 /* ── Home / overview ───────────────────────────────────────── */
 .ds-home { display: flex; flex-direction: column; gap: var(--space-8); }
 
+.ds-home-latest-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+@media (max-width: 720px) {
+  .ds-home-latest-grid { grid-template-columns: 1fr; }
+}
+
+.ds-latest-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ds-latest-card__delete { margin-left: auto; }
+.ds-latest-card__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+.ds-latest-card__body--image { gap: var(--space-2); }
+.ds-latest-card__text {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: var(--leading-normal);
+}
+.ds-latest-card__meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ds-latest-card__image-wrap {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+}
+.ds-latest-card__image {
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  display: block;
+}
+.ds-latest-card--image { border-color: rgba(124, 58, 237, 0.25); }
+.ds-latest-card--text.ds-latest-card--empty,
+.ds-latest-card--image.ds-latest-card--empty {
+  min-height: 8rem;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.ds-pair-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+.ds-pair-qr__image {
+  width: 200px;
+  height: 200px;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-md);
+}
+.ds-pair-qr__otp {
+  font-family: ui-monospace, monospace;
+  font-size: var(--text-lg);
+  letter-spacing: 0.2em;
+}
+
 /* ── Home feed (text list + media grid) ─────────────────────── */
 .ds-home-desktop { display: block; }
 .ds-home-mobile { display: none; }

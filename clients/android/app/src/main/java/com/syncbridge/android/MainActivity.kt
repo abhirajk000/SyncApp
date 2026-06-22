@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
                         loading = state.loading,
                         error = state.error,
                         onUnlock = { pin -> vm.unlock(pin) { } },
+                        onPairQr = { raw -> vm.pairFromQr(raw) { } },
                     )
                 } else {
                     MainShell(vm = vm)

@@ -1,15 +1,15 @@
 package com.syncbridge.android.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -26,7 +26,7 @@ import com.syncbridge.android.ui.theme.SyncTokens
 fun SettingsScreen(
     connected: Boolean,
     onLogout: () -> Unit,
-    onOpenNetwork: () -> Unit,
+    onOpenDevices: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -34,20 +34,20 @@ fun SettingsScreen(
             .padding(SyncTokens.Space4),
         verticalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
     ) {
-        AppSectionTitle("Network")
+        AppSectionTitle("Devices")
         AppCard {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onOpenNetwork),
+                    .clickable(onClick = onOpenDevices),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space3),
             ) {
-                Icon(Icons.Outlined.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Outlined.Devices, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {
-                    Text("Network & Transfer", fontWeight = FontWeight.SemiBold)
+                    Text("Trusted devices", fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Status, LAN peers, transfer mode",
+                        "Pair, rename, trust, or remove devices",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -59,7 +59,7 @@ fun SettingsScreen(
         AppSectionTitle("Connection")
         AppCard {
             Text(
-                if (connected) "Connected — WebSocket live" else "Offline — reconnecting…",
+                if (connected) "Connected — clipboard sync active" else "Offline — reconnecting…",
                 color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -74,7 +74,7 @@ fun SettingsScreen(
         AppSectionTitle("About")
         AppCard {
             Text(
-                "SyncBridge — instant clipboard sync across your devices.",
+                "SyncBridge — universal clipboard and file sharing across your devices.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -9,8 +9,11 @@ import com.syncbridge.android.data.ApiException
 import com.syncbridge.android.data.ClipboardEntry
 import com.syncbridge.android.data.FileEntry
 import com.syncbridge.android.data.UploadProgress
+import com.syncbridge.android.data.UploadStatus
+import com.syncbridge.android.sync.ClipboardRepository
 import com.syncbridge.android.sync.SyncClipboardService
 import com.syncbridge.android.sync.SyncEventBus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -134,8 +137,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             refreshFiles()
-            kotlinx.coroutines.delay(3000)
-            _state.update { it.copy(uploads = it.uploads.filter { u -> u.status != com.syncbridge.android.data.UploadStatus.Success }) }
+            delay(3000)
+            _state.update { it.copy(uploads = it.uploads.filter { u -> u.status != UploadStatus.Success }) }
         }
     }
 
@@ -169,6 +172,54 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 _state.update { it.copy(error = e.message) }
             }
+        }
+    }
+
+    fun pairFromQr(raw: String, onSuccess: () -> Unit) {
+        val otp = parsePairingOtp(raw) ?: run {
+            _state.update { it.copy(error = "Invalid pairing QR code") }
+            return
+        }
+        val name = android.os.Build.MODEL.ifBlank { "Android Device" }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            try {
+                api.confirmPairing(otp, name)
+                SyncClipboardService.start(getApplication())
+                _state.update { it.copy(isAuthenticated = true, loading = false) }
+                refreshAll()
+                onSuccess()
+            } catch (e: ApiException) {
+                _state.update { it.copy(loading = false, error = e.message) }
+            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, error = e.message ?: "Pairing failed") }
+            }
+        }
+    }
+
+    fun shareUri(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val repo = ClipboardRepository(getApplication(), api)
+                val mime = getApplication<Application>().contentResolver.getType(uri).orEmpty()
+                if (mime.startsWith("image/")) {
+                    repo.syncImageFromUri(uri)
+                } else {
+                    uploadUris(listOf(uri))
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    private fun parsePairingOtp(raw: String): String? {
+        val trimmed = raw.trim()
+        return try {
+            val json = org.json.JSONObject(trimmed)
+            json.optString("otp").takeIf { it.length == 6 }
+        } catch (_: Exception) {
+            if (trimmed.length == 6 && trimmed.all { it.isDigit() }) trimmed else null
         }
     }
 

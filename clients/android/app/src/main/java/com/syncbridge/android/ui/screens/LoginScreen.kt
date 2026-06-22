@@ -1,5 +1,6 @@
 package com.syncbridge.android.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -27,12 +29,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.syncbridge.android.R
 import com.syncbridge.android.ui.components.AppCard
 import com.syncbridge.android.ui.components.LiquidBackground
@@ -43,8 +46,12 @@ fun LoginScreen(
     loading: Boolean,
     error: String?,
     onUnlock: (String) -> Unit,
+    onPairQr: (String) -> Unit,
 ) {
     var pin by remember { mutableStateOf("") }
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        result.contents?.let(onPairQr)
+    }
 
     Box(Modifier.fillMaxSize()) {
         LiquidBackground()
@@ -71,7 +78,7 @@ fun LoginScreen(
             Spacer(Modifier.height(SyncTokens.Space4))
             Text("SyncBridge", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
             Text(
-                "Enter your PIN to unlock",
+                "Enter your PIN or scan a pairing QR",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -116,6 +123,22 @@ fun LoginScreen(
                     } else {
                         Text("Unlock", style = MaterialTheme.typography.titleSmall)
                     }
+                }
+                Spacer(Modifier.height(SyncTokens.Space3))
+                OutlinedButton(
+                    onClick = {
+                        scanLauncher.launch(
+                            ScanOptions()
+                                .setPrompt("Scan SyncBridge pairing QR")
+                                .setBeepEnabled(false)
+                                .setOrientationLocked(false),
+                        )
+                    },
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(SyncTokens.RadiusMd),
+                ) {
+                    Text("Scan QR to pair")
                 }
             }
         }

@@ -1,15 +1,14 @@
 import { AppButton, AppCard, AppSection } from "../components";
 import { IconDevices, IconLogout } from "../components/Icons";
 import { useTheme } from "../design/ThemeProvider";
-import { ChevronRight, Wifi } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 interface Props {
   onLogout: () => void;
-  onOpenNetwork: () => void;
   onOpenDevices: () => void;
 }
 
-export function SettingsPage({ onLogout, onOpenNetwork, onOpenDevices }: Props) {
+export function SettingsPage({ onLogout, onOpenDevices }: Props) {
   const { theme, setTheme } = useTheme();
 
   return (
@@ -22,22 +21,7 @@ export function SettingsPage({ onLogout, onOpenNetwork, onOpenDevices }: Props) 
             </span>
             <span className="ds-settings-link__body">
               <strong>Trusted devices</strong>
-              <span className="ds-subtitle">Rename, trust, or remove devices</span>
-            </span>
-            <ChevronRight size={20} className="ds-settings-link__chevron" strokeWidth={2} />
-          </button>
-        </AppCard>
-      </AppSection>
-
-      <AppSection title="Network">
-        <AppCard>
-          <button type="button" className="ds-settings-link" onClick={onOpenNetwork}>
-            <span className="ds-settings-link__icon">
-              <Wifi size={22} strokeWidth={1.75} />
-            </span>
-            <span className="ds-settings-link__body">
-              <strong>Network &amp; Transfer</strong>
-              <span className="ds-subtitle">Status, LAN peers, transfer mode</span>
+              <span className="ds-subtitle">Pair, rename, trust, or remove devices</span>
             </span>
             <ChevronRight size={20} className="ds-settings-link__chevron" strokeWidth={2} />
           </button>

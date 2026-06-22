@@ -19,9 +19,9 @@ struct PairingView: View {
                 .multilineTextAlignment(.center)
 
             AppCard {
-                if let code = appState.pairingCode {
+                if let payload = appState.pairingQrPayload {
                     VStack(spacing: DS.Space.lg) {
-                        qrCodeImage(for: code)
+                        qrCodeImage(for: payload)
                             .interpolation(.none)
                             .resizable()
                             .scaledToFit()
@@ -30,9 +30,11 @@ struct PairingView: View {
                             .background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
 
-                        Text("Code: \(code)")
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
+                        if let otp = appState.pairingOtp {
+                            Text("Code: \(otp)")
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
 
                         if let expiresAt = appState.pairingExpiresAt {
                             Text("Expires at \(expiresAt)")
@@ -66,7 +68,7 @@ struct PairingView: View {
         .padding(DS.Space.xl)
         .frame(width: 320)
         .task {
-            if appState.pairingCode == nil {
+            if appState.pairingQrPayload == nil {
                 await appState.initiatePairing()
             }
         }

@@ -9,66 +9,17 @@ import {
   getAccessToken,
   pinFile,
 } from "../api";
-import { AppEmptyState, AppSkeleton } from "../components";
+import { AppEmptyState, AppSection, AppSkeleton } from "../components";
 import { TrustedDevicesBar } from "../components/TrustedDevicesBar";
 import { ClipboardImageThumb } from "../components/ClipboardImageThumb";
 import { FileGridCard } from "../components/FileGridCard";
 import { ItemDeleteButton } from "../components/ItemDeleteButton";
-import { IconFile, IconImage, IconText } from "../components/Icons";
+import { IconImage, IconText } from "../components/Icons";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
 import { relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
 
-type MediaItem =
-  | { kind: "image"; id: string; created_at: string; entry: ClipboardEntry }
-  | { kind: "file"; id: string; created_at: string; file: FileEntry };
-
-type FeedItem =
-  | { section: "text"; id: string; created_at: string; entry: ClipboardEntry }
-  | { section: "media"; id: string; created_at: string; media: MediaItem };
-
-type MobileSection =
-  | { section: "text"; items: ClipboardEntry[] }
-  | { section: "media"; items: MediaItem[] };
-
-function buildMobileSections(
-  textEntries: ClipboardEntry[],
-  mediaItems: MediaItem[],
-): MobileSection[] {
-  const feed: FeedItem[] = [
-    ...textEntries.map((entry) => ({
-      section: "text" as const,
-      id: entry.id,
-      created_at: entry.created_at,
-      entry,
-    })),
-    ...mediaItems.map((media) => ({
-      section: "media" as const,
-      id: media.id,
-      created_at: media.created_at,
-      media,
-    })),
-  ].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
-
-  const sections: MobileSection[] = [];
-  for (const item of feed) {
-    const last = sections[sections.length - 1];
-    if (item.section === "text") {
-      if (last?.section === "text") {
-        last.items.push(item.entry);
-      } else {
-        sections.push({ section: "text", items: [item.entry] });
-      }
-    } else if (last?.section === "media") {
-      last.items.push(item.media);
-    } else {
-      sections.push({ section: "media", items: [item.media] });
-    }
-  }
-  return sections;
-}
+const RECENT_FILES_LIMIT = 12;
 
 function HomeTextRow({
   entry,
@@ -80,6 +31,7 @@ function HomeTextRow({
   const { toast } = useToast();
 
   async function copy() {
+    if (!entry) return;
     try {
       await copyEntryToClipboard(entry);
       toast("Copied", "success");
@@ -101,21 +53,74 @@ function HomeTextRow({
   );
 }
 
-function HomeImageCard({
+function LatestTextCard({
   entry,
   onDelete,
 }: {
-  entry: ClipboardEntry;
+  entry?: ClipboardEntry;
+  onDelete: () => void;
+}) {
+  const { toast } = useToast();
+
+  if (!entry) {
+    return (
+      <div className="ds-latest-card ds-latest-card--text ds-latest-card--empty">
+        <p>No text yet — copy on any device to sync here.</p>
+      </div>
+    );
+  }
+
+  const textEntry = entry;
+
+  async function copy() {
+    try {
+      await copyEntryToClipboard(textEntry);
+      toast("Copied", "success");
+    } catch {
+      toast("Could not copy", "danger");
+    }
+  }
+
+  return (
+    <div className="ds-latest-card ds-latest-card--text">
+      <div className="ds-latest-card__head">
+        <IconText size={18} />
+        <span>Latest text</span>
+        <ItemDeleteButton onClick={onDelete} className="ds-latest-card__delete" />
+      </div>
+      <button type="button" className="ds-latest-card__body" onClick={() => void copy()}>
+        <p className="ds-latest-card__text">{textEntry.content}</p>
+        <span className="ds-latest-card__meta">{relativeTime(textEntry.created_at)} · Tap to copy</span>
+      </button>
+    </div>
+  );
+}
+
+function LatestImageCard({
+  entry,
+  onDelete,
+}: {
+  entry?: ClipboardEntry;
   onDelete: () => void;
 }) {
   const { toast } = useToast();
   const [copying, setCopying] = useState(false);
 
+  if (!entry) {
+    return (
+      <div className="ds-latest-card ds-latest-card--image ds-latest-card--empty">
+        <p>No image yet — screenshots and photos sync automatically.</p>
+      </div>
+    );
+  }
+
+  const imageEntry = entry;
+
   async function copy() {
     if (copying) return;
     setCopying(true);
     try {
-      await copyEntryToClipboard(entry);
+      await copyEntryToClipboard(imageEntry);
       toast("Image copied", "success");
     } catch {
       toast("Could not copy", "danger");
@@ -125,97 +130,27 @@ function HomeImageCard({
   }
 
   return (
-    <div className="ds-file-grid-item">
-      <div className="ds-file-grid-preview-wrap">
-        <button
-          type="button"
-          className={`ds-file-preview ds-home-media-tap${copying ? " ds-home-media-tap--busy" : ""}`}
-          onClick={() => void copy()}
-          disabled={copying}
-          aria-label="Copy image"
-        >
-          {entry.has_thumbnail || !entry.content ? (
-            <ClipboardImageThumb entryId={entry.id} className="ds-file-preview-image" />
+    <div className="ds-latest-card ds-latest-card--image">
+      <div className="ds-latest-card__head">
+        <IconImage size={18} />
+        <span>Latest image</span>
+        <ItemDeleteButton onClick={onDelete} className="ds-latest-card__delete" />
+      </div>
+      <button
+        type="button"
+        className={`ds-latest-card__body ds-latest-card__body--image${copying ? " ds-home-media-tap--busy" : ""}`}
+        onClick={() => void copy()}
+        disabled={copying}
+      >
+        <div className="ds-latest-card__image-wrap">
+          {imageEntry.has_thumbnail || !imageEntry.content ? (
+            <ClipboardImageThumb entryId={imageEntry.id} className="ds-latest-card__image" />
           ) : (
-            <img
-              src={imageDataUrl(entry)}
-              alt=""
-              className="ds-file-preview-image"
-              loading="lazy"
-              draggable={false}
-            />
+            <img src={imageDataUrl(imageEntry)} alt="" className="ds-latest-card__image" loading="lazy" draggable={false} />
           )}
-          <span className="ds-home-media-tap__label">{copying ? "Copying…" : "Copy"}</span>
-        </button>
-        <ItemDeleteButton onClick={onDelete} overlay />
-      </div>
-      <span className="ds-file-grid-name">{relativeTime(entry.created_at)}</span>
-    </div>
-  );
-}
-
-function HomePaneHead({
-  icon,
-  title,
-  count,
-  accent,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  count: number;
-  accent: "teal" | "violet";
-}) {
-  return (
-    <header className={`ds-home-pane__head ds-home-pane__head--${accent}`}>
-      <span className="ds-home-pane__icon" aria-hidden>{icon}</span>
-      <div className="ds-home-pane__titles">
-        <h2 className="ds-home-pane__title">{title}</h2>
-        <span className="ds-home-pane__count">{count} item{count === 1 ? "" : "s"}</span>
-      </div>
-    </header>
-  );
-}
-
-function MediaGrid({
-  items,
-  onDeleteImage,
-  onDeleteFile,
-  onPinFile,
-}: {
-  items: MediaItem[];
-  onDeleteImage: (entry: ClipboardEntry) => void;
-  onDeleteFile: (file: FileEntry) => void;
-  onPinFile: (file: FileEntry) => void;
-}) {
-  if (items.length === 0) {
-    return (
-      <AppEmptyState
-        icon={<IconFile size={22} />}
-        title="No photos or files"
-        description="Images and transfers from your devices show up here."
-      />
-    );
-  }
-
-  return (
-    <div className="ds-file-grid ds-home-media-grid">
-      {items.map((item) =>
-        item.kind === "image" ? (
-          <HomeImageCard
-            key={item.id}
-            entry={item.entry}
-            onDelete={() => onDeleteImage(item.entry)}
-          />
-        ) : (
-          <FileGridCard
-            key={item.id}
-            file={item.file}
-            onPin={onPinFile}
-            onDelete={onDeleteFile}
-            tapToCopy
-          />
-        ),
-      )}
+        </div>
+        <span className="ds-latest-card__meta">{relativeTime(imageEntry.created_at)} · Tap to copy</span>
+      </button>
     </div>
   );
 }
@@ -283,13 +218,8 @@ export function HomePage() {
   async function togglePin(file: FileEntry) {
     try {
       await pinFile(file.id, !file.is_pinned);
-      setFiles((prev) =>
-        prev.map((f) => (f.id === file.id ? { ...f, is_pinned: !f.is_pinned } : f)),
-      );
-      if (!file.is_pinned) {
-        setFiles((prev) => prev.filter((f) => f.id !== file.id));
-      }
-      toast(file.is_pinned ? "Unpinned" : "Pinned", "success");
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+      toast("Pinned", "success");
     } catch {
       toast("Could not update pin", "danger");
     }
@@ -299,41 +229,33 @@ export function HomePage() {
     () =>
       entries
         .filter((e) => !isImageContentType(e.content_type))
-        .sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        ),
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [entries],
   );
 
-  const mediaItems = useMemo<MediaItem[]>(() => {
-    const images: MediaItem[] = entries
-      .filter((e) => isImageContentType(e.content_type))
-      .map((entry) => ({
-        kind: "image",
-        id: entry.id,
-        created_at: entry.created_at,
-        entry,
-      }));
-    const fileItems: MediaItem[] = files.map((file) => ({
-      kind: "file",
-      id: file.id,
-      created_at: file.created_at,
-      file,
-    }));
-    return [...images, ...fileItems].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-  }, [entries, files]);
-
-  const mobileSections = useMemo(
-    () => buildMobileSections(textEntries, mediaItems),
-    [textEntries, mediaItems],
+  const imageEntries = useMemo(
+    () =>
+      entries
+        .filter((e) => isImageContentType(e.content_type))
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [entries],
   );
+
+  const recentFiles = useMemo(
+    () =>
+      [...files].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      ).slice(0, RECENT_FILES_LIMIT),
+    [files],
+  );
+
+  const latestText = textEntries[0];
+  const latestImage = imageEntries[0];
+  const olderText = textEntries.slice(1);
 
   if (loading) return <AppSkeleton rows={8} />;
 
-  const isEmpty = textEntries.length === 0 && mediaItems.length === 0;
+  const isEmpty = !latestText && !latestImage && recentFiles.length === 0;
 
   if (isEmpty) {
     return (
@@ -342,7 +264,7 @@ export function HomePage() {
         <AppEmptyState
           icon={<IconText size={22} />}
           title="Nothing synced yet"
-          description="Copy text, an image, or send a file from any device — it will appear here."
+          description="Copy text or an image on any device — it appears here automatically."
         />
       </div>
     );
@@ -351,93 +273,47 @@ export function HomePage() {
   return (
     <div className="ds-content-wide ds-home">
       <TrustedDevicesBar />
-      <div className="ds-home-desktop">
-        <div className="ds-home-split">
-          <section className="ds-home-pane ds-home-pane--text" aria-label="Text">
-            <HomePaneHead
-              accent="teal"
-              icon={<IconText size={20} />}
-              title="Text"
-              count={textEntries.length}
-            />
-            <div className="ds-home-pane__body">
-              {textEntries.length === 0 ? (
-                <p className="ds-home-pane-empty">No text clips yet.</p>
-              ) : (
-                <ul className="ds-home-text-list">
-                  {textEntries.map((entry) => (
-                    <HomeTextRow
-                      key={entry.id}
-                      entry={entry}
-                      onDelete={() => void removeClipboard(entry)}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
 
-          <section className="ds-home-pane ds-home-pane--media" aria-label="Photos and files">
-            <HomePaneHead
-              accent="violet"
-              icon={<IconImage size={20} />}
-              title="Photos & files"
-              count={mediaItems.length}
-            />
-            <div className="ds-home-pane__body">
-              <MediaGrid
-                items={mediaItems}
-                onDeleteImage={removeClipboard}
-                onDeleteFile={removeFile}
-                onPinFile={togglePin}
-              />
-            </div>
-          </section>
-        </div>
+      <div className="ds-home-latest-grid">
+        <LatestTextCard
+          entry={latestText}
+          onDelete={() => latestText && void removeClipboard(latestText)}
+        />
+        <LatestImageCard
+          entry={latestImage}
+          onDelete={() => latestImage && void removeClipboard(latestImage)}
+        />
       </div>
 
-      <div className="ds-home-mobile">
-        {mobileSections.map((section, index) =>
-          section.section === "text" ? (
-            <section key={`text-${index}`} className="ds-home-mobile-block ds-home-pane ds-home-pane--text">
-              <HomePaneHead
-                accent="teal"
-                icon={<IconText size={20} />}
-                title="Text"
-                count={section.items.length}
+      {recentFiles.length > 0 && (
+        <AppSection title="Recent files">
+          <div className="ds-file-grid ds-home-media-grid">
+            {recentFiles.map((file) => (
+              <FileGridCard
+                key={file.id}
+                file={file}
+                onPin={togglePin}
+                onDelete={removeFile}
+                tapToCopy
               />
-              <div className="ds-home-pane__body">
-                <ul className="ds-home-text-list">
-                  {section.items.map((entry) => (
-                    <HomeTextRow
-                      key={entry.id}
-                      entry={entry}
-                      onDelete={() => void removeClipboard(entry)}
-                    />
-                  ))}
-                </ul>
-              </div>
-            </section>
-          ) : (
-            <section key={`media-${index}`} className="ds-home-mobile-block ds-home-pane ds-home-pane--media">
-              <HomePaneHead
-                accent="violet"
-                icon={<IconImage size={20} />}
-                title="Photos & files"
-                count={section.items.length}
+            ))}
+          </div>
+        </AppSection>
+      )}
+
+      {olderText.length > 0 && (
+        <AppSection title="Earlier text">
+          <ul className="ds-home-text-list">
+            {olderText.map((entry) => (
+              <HomeTextRow
+                key={entry.id}
+                entry={entry}
+                onDelete={() => void removeClipboard(entry)}
               />
-              <div className="ds-home-pane__body">
-                <MediaGrid
-                  items={section.items}
-                  onDeleteImage={removeClipboard}
-                  onDeleteFile={removeFile}
-                  onPinFile={togglePin}
-                />
-              </div>
-            </section>
-          ),
-        )}
-      </div>
+            ))}
+          </ul>
+        </AppSection>
+      )}
     </div>
   );
 }

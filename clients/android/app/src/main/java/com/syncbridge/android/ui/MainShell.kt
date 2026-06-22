@@ -48,7 +48,7 @@ import com.syncbridge.android.ui.screens.FilesScreen
 import com.syncbridge.android.ui.screens.HomeScreen
 import com.syncbridge.android.ui.screens.PinnedScreen
 import com.syncbridge.android.ui.screens.SendScreen
-import com.syncbridge.android.ui.screens.NetworkScreen
+import com.syncbridge.android.ui.screens.DevicesScreen
 import com.syncbridge.android.ui.screens.SettingsScreen
 import com.syncbridge.android.ui.theme.SyncTokens
 
@@ -76,9 +76,7 @@ fun MainShell(vm: AppViewModel = viewModel()) {
     var showConnMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        SyncEventBus.nearbyAlert.collectLatest {
-            android.widget.Toast.makeText(context, "Nearby device available", android.widget.Toast.LENGTH_SHORT).show()
-        }
+        // Nearby peer toasts de-emphasized — clipboard sync is cloud relay.
     }
 
     LaunchedEffect(currentTab) {
@@ -89,7 +87,14 @@ fun MainShell(vm: AppViewModel = viewModel()) {
         if (!state.isAuthenticated) return@LaunchedEffect
         val app = context.applicationContext as com.syncbridge.android.SyncBridgeApp
         app.pendingShareText?.let { vm.sendText(it); app.pendingShareText = null }
-        app.pendingShareUris?.let { vm.uploadUris(it); app.pendingShareUris = null }
+        app.pendingShareUris?.let { uris ->
+            if (uris.size == 1) {
+                vm.shareUri(uris.first())
+            } else {
+                vm.uploadUris(uris)
+            }
+            app.pendingShareUris = null
+        }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -241,16 +246,12 @@ private fun MainNavHost(
         }
         composable(MainTab.Settings.route) {
             val app = LocalContext.current.applicationContext as com.syncbridge.android.SyncBridgeApp
-            if (settingsSubpage == "network") {
-                NetworkScreen(
-                    networkManager = app.networkManager,
-                    onBack = { onSettingsSubpage("main") },
-                )
-            } else {
-                SettingsScreen(
+            when (settingsSubpage) {
+                "devices" -> DevicesScreen(api = app.api, onBack = { onSettingsSubpage("main") })
+                else -> SettingsScreen(
                     connected = state.connected,
                     onLogout = vm::logout,
-                    onOpenNetwork = { onSettingsSubpage("network") },
+                    onOpenDevices = { onSettingsSubpage("devices") },
                 )
             }
         }

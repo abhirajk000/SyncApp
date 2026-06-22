@@ -75,15 +75,29 @@ struct DeviceListResponse: Decodable {
 // ── Pairing ───────────────────────────────────────────────────────────────────
 
 struct PairingInitResponse: Decodable {
-    let code: String
+    let pairingId: String
+    let otp: String
+    let userId: String
     let expiresAt: String
+    let qrPayload: String
     enum CodingKeys: String, CodingKey {
-        case code, expiresAt = "expires_at"
+        case pairingId = "pairing_id"
+        case otp
+        case userId = "user_id"
+        case expiresAt = "expires_at"
+        case qrPayload = "qr_payload"
     }
 }
 
 struct PairingConfirmRequest: Encodable {
-    let code: String
+    let otp: String
+    let name: String
+    let platform: String
+    let publicKey: String
+    enum CodingKeys: String, CodingKey {
+        case otp, name, platform
+        case publicKey = "public_key"
+    }
 }
 
 // ── Clipboard ─────────────────────────────────────────────────────────────────

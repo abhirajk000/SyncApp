@@ -53,7 +53,8 @@ final class AppState: ObservableObject {
     @Published var errorMessage: String? = nil
 
     // ── Pairing ───────────────────────────────────────────────────────────────
-    @Published var pairingCode: String? = nil
+    @Published var pairingQrPayload: String? = nil
+    @Published var pairingOtp: String? = nil
     @Published var pairingExpiresAt: String? = nil
     @Published var isPairingActive: Bool = false
 
@@ -156,7 +157,8 @@ final class AppState: ObservableObject {
     func initiatePairing() async {
         do {
             let resp = try await authService.initiatePairing()
-            pairingCode = resp.code
+            pairingQrPayload = resp.qrPayload
+            pairingOtp = resp.otp
             pairingExpiresAt = resp.expiresAt
             isPairingActive = true
         } catch {

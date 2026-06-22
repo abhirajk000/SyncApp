@@ -7,6 +7,7 @@ import {
   trustDevice,
 } from "../api";
 import { AppButton, AppCard, AppInput, AppModal, AppSection, AppSkeleton } from "../components";
+import { PairQrPanel } from "../components/PairQrPanel";
 import { DeviceTypeIcon } from "../components/DeviceTypeIcon";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -99,8 +100,12 @@ export function DevicesPage({ onBack }: Props) {
 
       <h2 className="ds-title" style={{ marginBottom: "var(--space-2)" }}>Devices</h2>
       <p className="ds-subtitle" style={{ marginBottom: "var(--space-6)" }}>
-        Manage trusted devices on your account.
+        Pair new devices and manage trusted devices on your account.
       </p>
+
+      <AppSection title="Pair a device">
+        <PairQrPanel />
+      </AppSection>
 
       {current && (
         <AppSection title="This device">

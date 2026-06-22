@@ -11,6 +11,8 @@ final class AppState: ObservableObject {
     @Published var errorMessage: String?
     @Published var latestClipboardPopup: ClipboardEntry?
 
+    private let clipboardMonitor = ClipboardMonitor()
+
     var serverURL: String { Self.defaultServerURL }
 
     var accessToken: String? {
@@ -24,9 +26,22 @@ final class AppState: ObservableObject {
 
     init() {
         isAuthenticated = accessToken != nil
+        clipboardMonitor.serverURL = serverURL
+        clipboardMonitor.accessToken = accessToken
+    }
+
+    func startClipboardMonitor() {
+        clipboardMonitor.serverURL = serverURL
+        clipboardMonitor.accessToken = accessToken
+        clipboardMonitor.start()
+    }
+
+    func stopClipboardMonitor() {
+        clipboardMonitor.stop()
     }
 
     func logout() {
+        stopClipboardMonitor()
         accessTokenStorage = nil
         UserDefaults.standard.removeObject(forKey: Keys.refreshToken)
         isAuthenticated = false
@@ -45,6 +60,8 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(result.refreshToken, forKey: Keys.refreshToken)
             isAuthenticated = true
             errorMessage = nil
+            clipboardMonitor.accessToken = result.accessToken
+            startClipboardMonitor()
             await loadLatestClipboard()
         } catch {
             errorMessage = error.localizedDescription
@@ -54,13 +71,7 @@ final class AppState: ObservableObject {
     func applyEntryToPasteboard(_ entry: ClipboardEntry?) {
         #if os(iOS)
         guard let entry else { return }
-        if entry.contentType.hasPrefix("image/"),
-           let data = Data(base64Encoded: entry.content),
-           let image = UIImage(data: data) {
-            UIPasteboard.general.image = image
-        } else {
-            UIPasteboard.general.string = entry.content
-        }
+        clipboardMonitor.applyRemoteEntry(entry)
         #endif
     }
 

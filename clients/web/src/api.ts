@@ -350,3 +350,53 @@ export async function revokeDevice(id: string): Promise<void> {
 export async function trustDevice(id: string): Promise<void> {
   await apiRequest<void>(`/api/v1/devices/${id}/trust`, { method: "POST" });
 }
+
+export interface PairInitiateResponse {
+  pairing_id: string;
+  otp: string;
+  user_id: string;
+  expires_at: string;
+  qr_payload: string;
+}
+
+export interface PairConfirmResponse {
+  access_token: string;
+  refresh_token: string;
+  user_id: string;
+  device_id: string;
+  trusted_until: string;
+}
+
+function generateDevicePublicKey(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+
+export async function initiatePairing(): Promise<PairInitiateResponse> {
+  return apiRequest<PairInitiateResponse>("/api/v1/devices/pair/initiate", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function confirmPairing(otp: string, deviceName: string): Promise<PairConfirmResponse> {
+  const data = await apiRequest<PairConfirmResponse>(
+    "/api/v1/devices/pair/confirm",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        otp,
+        name: deviceName,
+        platform: "web",
+        public_key: generateDevicePublicKey(),
+      }),
+    },
+    false,
+  );
+  writeAuth(KEYS.accessToken, data.access_token);
+  writeAuth(KEYS.refreshToken, data.refresh_token);
+  return data;
+}

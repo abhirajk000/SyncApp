@@ -47,6 +47,12 @@ class ClipboardRepository(
         SyncEventBus.emitClipboard(synced)
     }
 
+    suspend fun syncImageFromUri(uri: Uri) {
+        readImageFromUri(uri)?.let { (content, type) ->
+            syncClipboard(type, content)
+        }
+    }
+
     private fun readImageFromUri(uri: Uri): Pair<String, String>? {
         return try {
             val mime = context.contentResolver.getType(uri) ?: "image/png"
