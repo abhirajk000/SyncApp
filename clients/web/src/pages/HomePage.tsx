@@ -14,7 +14,7 @@ import { TrustedDevicesBar } from "../components/TrustedDevicesBar";
 import { ClipboardImageThumb } from "../components/ClipboardImageThumb";
 import { FileGridCard } from "../components/FileGridCard";
 import { ItemDeleteButton } from "../components/ItemDeleteButton";
-import { IconFile, IconText } from "../components/Icons";
+import { IconFile, IconImage, IconText } from "../components/Icons";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
 import { relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
@@ -91,8 +91,10 @@ function HomeTextRow({
   return (
     <li className="ds-home-text-row">
       <button type="button" className="ds-home-text-row__body" onClick={() => void copy()}>
-        <span className="ds-home-text-row__content">{entry.content}</span>
-        <span className="ds-home-text-row__meta">{relativeTime(entry.created_at)}</span>
+        <span className="ds-home-text-row__meta-wrap">
+          <span className="ds-home-text-row__content">{entry.content}</span>
+          <span className="ds-home-text-row__meta">{relativeTime(entry.created_at)}</span>
+        </span>
       </button>
       <ItemDeleteButton onClick={onDelete} />
     </li>
@@ -107,13 +109,18 @@ function HomeImageCard({
   onDelete: () => void;
 }) {
   const { toast } = useToast();
+  const [copying, setCopying] = useState(false);
 
   async function copy() {
+    if (copying) return;
+    setCopying(true);
     try {
       await copyEntryToClipboard(entry);
       toast("Image copied", "success");
     } catch {
       toast("Could not copy", "danger");
+    } finally {
+      setCopying(false);
     }
   }
 
@@ -122,8 +129,9 @@ function HomeImageCard({
       <div className="ds-file-grid-preview-wrap">
         <button
           type="button"
-          className="ds-file-preview ds-home-media-tap"
+          className={`ds-file-preview ds-home-media-tap${copying ? " ds-home-media-tap--busy" : ""}`}
           onClick={() => void copy()}
+          disabled={copying}
           aria-label="Copy image"
         >
           {entry.has_thumbnail || !entry.content ? (
@@ -134,13 +142,37 @@ function HomeImageCard({
               alt=""
               className="ds-file-preview-image"
               loading="lazy"
+              draggable={false}
             />
           )}
+          <span className="ds-home-media-tap__label">{copying ? "Copying…" : "Copy"}</span>
         </button>
         <ItemDeleteButton onClick={onDelete} overlay />
       </div>
       <span className="ds-file-grid-name">{relativeTime(entry.created_at)}</span>
     </div>
+  );
+}
+
+function HomePaneHead({
+  icon,
+  title,
+  count,
+  accent,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  count: number;
+  accent: "teal" | "violet";
+}) {
+  return (
+    <header className={`ds-home-pane__head ds-home-pane__head--${accent}`}>
+      <span className="ds-home-pane__icon" aria-hidden>{icon}</span>
+      <div className="ds-home-pane__titles">
+        <h2 className="ds-home-pane__title">{title}</h2>
+        <span className="ds-home-pane__count">{count} item{count === 1 ? "" : "s"}</span>
+      </div>
+    </header>
   );
 }
 
@@ -180,6 +212,7 @@ function MediaGrid({
             file={item.file}
             onPin={onPinFile}
             onDelete={onDeleteFile}
+            tapToCopy
           />
         ),
       )}
@@ -321,28 +354,44 @@ export function HomePage() {
       <div className="ds-home-desktop">
         <div className="ds-home-split">
           <section className="ds-home-pane ds-home-pane--text" aria-label="Text">
-            {textEntries.length === 0 ? (
-              <p className="ds-home-pane-empty">No text clips yet.</p>
-            ) : (
-              <ul className="ds-home-text-list">
-                {textEntries.map((entry) => (
-                  <HomeTextRow
-                    key={entry.id}
-                    entry={entry}
-                    onDelete={() => void removeClipboard(entry)}
-                  />
-                ))}
-              </ul>
-            )}
+            <HomePaneHead
+              accent="teal"
+              icon={<IconText size={20} />}
+              title="Text"
+              count={textEntries.length}
+            />
+            <div className="ds-home-pane__body">
+              {textEntries.length === 0 ? (
+                <p className="ds-home-pane-empty">No text clips yet.</p>
+              ) : (
+                <ul className="ds-home-text-list">
+                  {textEntries.map((entry) => (
+                    <HomeTextRow
+                      key={entry.id}
+                      entry={entry}
+                      onDelete={() => void removeClipboard(entry)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
 
           <section className="ds-home-pane ds-home-pane--media" aria-label="Photos and files">
-            <MediaGrid
-              items={mediaItems}
-              onDeleteImage={removeClipboard}
-              onDeleteFile={removeFile}
-              onPinFile={togglePin}
+            <HomePaneHead
+              accent="violet"
+              icon={<IconImage size={20} />}
+              title="Photos & files"
+              count={mediaItems.length}
             />
+            <div className="ds-home-pane__body">
+              <MediaGrid
+                items={mediaItems}
+                onDeleteImage={removeClipboard}
+                onDeleteFile={removeFile}
+                onPinFile={togglePin}
+              />
+            </div>
           </section>
         </div>
       </div>
@@ -350,25 +399,41 @@ export function HomePage() {
       <div className="ds-home-mobile">
         {mobileSections.map((section, index) =>
           section.section === "text" ? (
-            <section key={`text-${index}`} className="ds-home-mobile-block">
-              <ul className="ds-home-text-list">
-                {section.items.map((entry) => (
-                  <HomeTextRow
-                    key={entry.id}
-                    entry={entry}
-                    onDelete={() => void removeClipboard(entry)}
-                  />
-                ))}
-              </ul>
+            <section key={`text-${index}`} className="ds-home-mobile-block ds-home-pane ds-home-pane--text">
+              <HomePaneHead
+                accent="teal"
+                icon={<IconText size={20} />}
+                title="Text"
+                count={section.items.length}
+              />
+              <div className="ds-home-pane__body">
+                <ul className="ds-home-text-list">
+                  {section.items.map((entry) => (
+                    <HomeTextRow
+                      key={entry.id}
+                      entry={entry}
+                      onDelete={() => void removeClipboard(entry)}
+                    />
+                  ))}
+                </ul>
+              </div>
             </section>
           ) : (
-            <section key={`media-${index}`} className="ds-home-mobile-block">
-              <MediaGrid
-                items={section.items}
-                onDeleteImage={removeClipboard}
-                onDeleteFile={removeFile}
-                onPinFile={togglePin}
+            <section key={`media-${index}`} className="ds-home-mobile-block ds-home-pane ds-home-pane--media">
+              <HomePaneHead
+                accent="violet"
+                icon={<IconImage size={20} />}
+                title="Photos & files"
+                count={section.items.length}
               />
+              <div className="ds-home-pane__body">
+                <MediaGrid
+                  items={section.items}
+                  onDeleteImage={removeClipboard}
+                  onDeleteFile={removeFile}
+                  onPinFile={togglePin}
+                />
+              </div>
             </section>
           ),
         )}

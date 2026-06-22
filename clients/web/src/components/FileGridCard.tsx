@@ -33,6 +33,8 @@ interface Props {
   file: FileEntry;
   onPin: (file: FileEntry) => void;
   onDelete?: (file: FileEntry) => void;
+  /** Home grid: tap image preview to copy */
+  tapToCopy?: boolean;
 }
 
 function TypeIcon({ kind, size = 40 }: { kind: FilePreviewKind; size?: number }) {
@@ -143,7 +145,7 @@ function FilePreviewContent({ file }: { file: FileEntry }) {
   );
 }
 
-export function FileGridCard({ file, onPin, onDelete }: Props) {
+export function FileGridCard({ file, onPin, onDelete, tapToCopy }: Props) {
   const { toast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -185,7 +187,13 @@ export function FileGridCard({ file, onPin, onDelete }: Props) {
     }
   }
 
+  async function onTapCopy() {
+    if (!tapToCopy || !ready || !isImageMime(file.mime_type)) return;
+    await onCopy();
+  }
+
   const canCopy = ready && (isImageMime(file.mime_type) || isTextMime(file.mime_type));
+  const imageTapCopy = tapToCopy && ready && isImageMime(file.mime_type);
 
   function handleDelete() {
     if (!onDelete) return;
@@ -196,9 +204,20 @@ export function FileGridCard({ file, onPin, onDelete }: Props) {
   return (
     <article className="ds-file-grid-item">
       <div className="ds-file-grid-preview-wrap" ref={menuRef}>
-        <div className="ds-file-preview">
-          <FilePreviewContent file={file} />
-        </div>
+        {imageTapCopy ? (
+          <button
+            type="button"
+            className="ds-file-preview ds-home-media-tap"
+            onClick={() => void onTapCopy()}
+            aria-label={`Copy ${file.name}`}
+          >
+            <FilePreviewContent file={file} />
+          </button>
+        ) : (
+          <div className="ds-file-preview">
+            <FilePreviewContent file={file} />
+          </div>
+        )}
         {onDelete && (
           <ItemDeleteButton overlay onClick={handleDelete} label={`Delete ${file.name}`} />
         )}

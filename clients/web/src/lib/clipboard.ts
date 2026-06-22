@@ -49,18 +49,29 @@ export async function copyBlobToClipboard(blob: Blob): Promise<void> {
 export async function copyEntryToClipboard(entry: ClipboardEntry): Promise<void> {
   if (isImageContentType(entry.content_type)) {
     let content = entry.content;
-    if (!content && entry.has_thumbnail) {
+    if (!content) {
       const full = await fetchClipboardEntry(entry.id);
       content = full.content;
     }
-    if (!content) throw new Error("Image unavailable");
-    const dataUrl = content.startsWith("data:")
-      ? content
-      : `data:${entry.content_type};base64,${content}`;
-    const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    await copyBlobToClipboard(blob);
-    return;
+    if (content) {
+      try {
+        const dataUrl = content.startsWith("data:")
+          ? content
+          : `data:${entry.content_type};base64,${content}`;
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        await copyBlobToClipboard(blob);
+        return;
+      } catch {
+        /* try thumbnail below */
+      }
+    }
+    const thumb = await fetchClipboardThumbnail(entry.id);
+    if (thumb) {
+      await copyBlobToClipboard(thumb);
+      return;
+    }
+    throw new Error("Image unavailable");
   }
   await navigator.clipboard.writeText(entry.content);
 }
