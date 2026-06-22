@@ -5,7 +5,7 @@ alwaysApply: true
 
 # SyncBridge — Global Project Rules
 
-Personal-use app: **1 user**, **max 5 devices** (MacBook, Android, iPhone, Web).  
+Personal-use app: **1 user**, **unlimited devices** (MacBook, Android, iPhone, Web, browsers, etc.).  
 Infra: **1 VPS**, **≤1 GB RAM**, **Go monolith**, **PostgreSQL**, **local filesystem**.
 
 ## Do NOT build
