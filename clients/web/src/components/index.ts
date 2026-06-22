@@ -13,5 +13,6 @@ export { AppSection } from "./AppSection";
 export { AppSkeleton } from "./AppSkeleton";
 export { AppTextarea } from "./AppTextarea";
 export { QuickSendFiles } from "./QuickSendFiles";
+export { QuickSendImage } from "./QuickSendImage";
 export { QuickSendText } from "./QuickSendText";
 export { LatestClipboardCard } from "./LatestClipboardCard";

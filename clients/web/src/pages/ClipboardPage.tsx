@@ -12,13 +12,61 @@ import {
   AppSkeleton,
   LatestClipboardCard,
   QuickSendFiles,
+  QuickSendImage,
   QuickSendText,
 } from "../components";
 import { IconClipboard, IconPin } from "../components/Icons";
+import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
 import { relativeTime } from "../lib/format";
+import { useToast } from "../design/ToastProvider";
 
 interface Props {
   pinnedOnly?: boolean;
+}
+
+function ClipboardHistoryItem({
+  entry,
+  onPin,
+  pinLabel,
+}: {
+  entry: ClipboardEntry;
+  onPin: () => void;
+  pinLabel: string;
+}) {
+  const { toast } = useToast();
+  const isImage = isImageContentType(entry.content_type);
+
+  async function copy() {
+    try {
+      await copyEntryToClipboard(entry);
+      toast(isImage ? "Image copied" : "Copied", "success");
+    } catch {
+      toast("Could not copy", "danger");
+    }
+  }
+
+  return (
+    <li className="ds-list-item">
+      <div className="ds-list-body">
+        {isImage ? (
+          <img src={imageDataUrl(entry)} alt="" className="ds-image-preview ds-image-preview--thumb" />
+        ) : (
+          <span className="ds-list-primary">{entry.content}</span>
+        )}
+        <span className="ds-list-meta">
+          {entry.content_type} · {relativeTime(entry.created_at)}
+        </span>
+      </div>
+      <div className="ds-list-actions">
+        <AppButton variant="ghost" size="sm" onClick={() => void copy()}>
+          {isImage ? "Copy Image" : "Copy"}
+        </AppButton>
+        <AppButton variant="ghost" size="sm" onClick={onPin}>
+          {pinLabel}
+        </AppButton>
+      </div>
+    </li>
+  );
 }
 
 export function ClipboardPage({ pinnedOnly = false }: Props) {
@@ -100,22 +148,12 @@ export function ClipboardPage({ pinnedOnly = false }: Props) {
         <AppSection title="Pinned">
           <ul className="ds-list">
             {filtered.map((entry) => (
-              <li key={entry.id} className="ds-list-item">
-                <button
-                  type="button"
-                  className="ds-list-body"
-                  style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}
-                  onClick={() => navigator.clipboard.writeText(entry.content)}
-                >
-                  <span className="ds-list-primary">{entry.content}</span>
-                  <span className="ds-list-meta">
-                    {entry.content_type} · {relativeTime(entry.created_at)}
-                  </span>
-                </button>
-                <AppButton variant="ghost" size="sm" onClick={() => togglePin(entry)}>
-                  Unpin
-                </AppButton>
-              </li>
+              <ClipboardHistoryItem
+                key={entry.id}
+                entry={entry}
+                onPin={() => togglePin(entry)}
+                pinLabel="Unpin"
+              />
             ))}
           </ul>
         </AppSection>
@@ -126,6 +164,7 @@ export function ClipboardPage({ pinnedOnly = false }: Props) {
   return (
     <div className="ds-content-narrow ds-clipboard-page">
       <QuickSendFiles />
+      <QuickSendImage />
       <QuickSendText />
       <LatestClipboardCard />
 
@@ -143,22 +182,12 @@ export function ClipboardPage({ pinnedOnly = false }: Props) {
         ) : (
           <ul className="ds-list">
             {filtered.map((entry) => (
-              <li key={entry.id} className="ds-list-item">
-                <button
-                  type="button"
-                  className="ds-list-body"
-                  style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}
-                  onClick={() => navigator.clipboard.writeText(entry.content)}
-                >
-                  <span className="ds-list-primary">{entry.content}</span>
-                  <span className="ds-list-meta">
-                    {entry.content_type} · {relativeTime(entry.created_at)}
-                  </span>
-                </button>
-                <AppButton variant="ghost" size="sm" onClick={() => togglePin(entry)}>
-                  Pin
-                </AppButton>
-              </li>
+              <ClipboardHistoryItem
+                key={entry.id}
+                entry={entry}
+                onPin={() => togglePin(entry)}
+                pinLabel="Pin"
+              />
             ))}
           </ul>
         )}

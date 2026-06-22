@@ -22,11 +22,7 @@ var (
 	ErrInvalidPIN         = errors.New("invalid pin")
 	ErrDeviceRevoked      = errors.New("device has been revoked")
 	ErrSessionExpired     = errors.New("session expired or revoked")
-	ErrTooManyDevices     = errors.New("maximum number of devices reached")
 )
-
-// MaxDevices is the per-owner device limit.
-const MaxDevices = 5
 
 // ── Store interfaces ──────────────────────────────────────────────────────────
 
@@ -45,7 +41,6 @@ type authDeviceStore interface {
 	Create(ctx context.Context, d *repository.Device) error
 	FindActiveByID(ctx context.Context, id uuid.UUID) (*repository.Device, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID) ([]*repository.Device, error)
-	CountActiveByUserID(ctx context.Context, userID uuid.UUID) (int, error)
 	UpdateTrustedUntil(ctx context.Context, id uuid.UUID, until time.Time) error
 	UpdateLastSeen(ctx context.Context, id uuid.UUID) error
 }
@@ -115,7 +110,7 @@ type TrustStatus struct {
 // ── Unlock ────────────────────────────────────────────────────────────────────
 
 // Unlock validates the master PIN on the server and issues a 7-day device token.
-// New devices are registered automatically (up to MaxDevices).
+// New devices are registered automatically on first unlock.
 func (s *AuthService) Unlock(ctx context.Context, in UnlockInput) (*AuthResult, error) {
 	gs, err := s.settings.Get(ctx)
 	if err != nil {
@@ -134,13 +129,6 @@ func (s *AuthService) Unlock(ctx context.Context, in UnlockInput) (*AuthResult, 
 	}
 
 	if device == nil {
-		count, err := s.devices.CountActiveByUserID(ctx, gs.OwnerUserID)
-		if err != nil {
-			return nil, fmt.Errorf("count devices: %w", err)
-		}
-		if count >= MaxDevices {
-			return nil, ErrTooManyDevices
-		}
 		device, err = s.createPINDevice(ctx, gs.OwnerUserID, in.DeviceID, in.DeviceName, in.Platform)
 		if err != nil {
 			return nil, err

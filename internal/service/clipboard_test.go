@@ -308,6 +308,8 @@ func TestSync_AllContentTypes(t *testing.T) {
 		{"text/uri-list", "https://example.com\nhttps://another.com"},
 		{"text/html", "<b>bold</b>"},
 		{"text/rtf", `{\rtf1\ansi hello}`},
+		{"image/png", "iVBORw0KGgo="},
+		{"image/jpeg", "/9j/4AAQ"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.ct, func(t *testing.T) {

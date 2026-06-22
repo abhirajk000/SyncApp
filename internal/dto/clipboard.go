@@ -9,14 +9,23 @@ const (
 	ContentTypeURL     = "text/uri-list"  // RFC 2483 — one URI per line
 	ContentTypeHTML    = "text/html"      // rich text as HTML
 	ContentTypeRTF     = "text/rtf"       // rich text as RTF
+	ContentTypeJPEG    = "image/jpeg"
+	ContentTypePNG     = "image/png"
+	ContentTypeGIF     = "image/gif"
+	ContentTypeWebP    = "image/webp"
 )
 
 // SupportedContentTypes is the allowlist used for validation.
+// Image payloads are base64-encoded bytes in Content.
 var SupportedContentTypes = map[string]bool{
 	ContentTypePlain: true,
 	ContentTypeURL:   true,
 	ContentTypeHTML:  true,
 	ContentTypeRTF:   true,
+	ContentTypeJPEG:  true,
+	ContentTypePNG:   true,
+	ContentTypeGIF:   true,
+	ContentTypeWebP:  true,
 }
 
 // ── Requests ──────────────────────────────────────────────────────────────────

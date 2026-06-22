@@ -617,6 +617,85 @@
   letter-spacing: -0.01em;
 }
 
+.ds-list-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.ds-image-preview {
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: var(--radius-lg);
+  object-fit: contain;
+  display: block;
+}
+.ds-image-preview--inline { max-height: 200px; margin: var(--space-2) 0; }
+.ds-image-preview--thumb { max-height: 120px; margin-bottom: var(--space-2); }
+.ds-image-preview--grid { width: 100%; height: 160px; object-fit: cover; border-radius: var(--radius-md); }
+
+.ds-image-send-zone {
+  margin-top: var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-surface-elevated);
+}
+.ds-image-send-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.ds-upload-copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.ds-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+.ds-image-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.ds-image-card-actions {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ds-image-card-name {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-image-card-placeholder {
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .ds-shell { flex-direction: column; }

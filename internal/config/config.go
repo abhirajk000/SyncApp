@@ -69,8 +69,6 @@ type Config struct {
 	// ── Device trust (PIN auth) ───────────────────────────────────────────────
 	// DeviceTrustDays is how long a device stays trusted after a successful PIN entry.
 	DeviceTrustDays int
-	// MaxDevices is the maximum number of paired devices (default 5).
-	MaxDevices int
 
 	// ── JWT (device session tokens) ───────────────────────────────────────────
 	// JWTSecret is the HMAC-SHA256 signing key.  Must be ≥32 bytes.
@@ -169,7 +167,6 @@ func Load() (*Config, error) {
 		JWTRefreshTokenTTL: getEnvDuration("JWT_REFRESH_TOKEN_TTL", 7*24*time.Hour),
 
 		DeviceTrustDays: getEnvInt("DEVICE_TRUST_DAYS", 7),
-		MaxDevices:      getEnvInt("MAX_DEVICES", 5),
 
 		RateLimitMax:        getEnvInt("RATE_LIMIT_MAX", 60),
 		RateLimitWindowSecs: getEnvInt("RATE_LIMIT_WINDOW_SEC", 60),
@@ -234,9 +231,6 @@ func (c *Config) validate() error {
 	}
 	if len(c.JWTSecret) < 32 {
 		return fmt.Errorf("JWT_SECRET must be at least 32 characters")
-	}
-	if c.MaxDevices < 1 || c.MaxDevices > 5 {
-		return fmt.Errorf("MAX_DEVICES must be 1–5, got %d", c.MaxDevices)
 	}
 	valid := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 	if !valid[c.LogLevel] {

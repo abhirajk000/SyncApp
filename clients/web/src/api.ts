@@ -26,6 +26,23 @@ const KEYS = {
   refreshToken: "syncbridge.refreshToken",
 } as const;
 
+/** Persist auth in localStorage so PIN isn't needed every browser visit (7-day tokens). */
+const AUTH_STORE = localStorage;
+
+function readAuth(key: string): string | null {
+  return AUTH_STORE.getItem(key) ?? sessionStorage.getItem(key);
+}
+
+function writeAuth(key: string, value: string): void {
+  AUTH_STORE.setItem(key, value);
+  sessionStorage.setItem(key, value);
+}
+
+function removeAuth(key: string): void {
+  AUTH_STORE.removeItem(key);
+  sessionStorage.removeItem(key);
+}
+
 export interface AuthResponse {
   access_token: string;
   refresh_token: string;
@@ -73,30 +90,56 @@ function ensureDeviceId(): string {
 }
 
 export function getServerUrl(): string {
-  const stored = sessionStorage.getItem(KEYS.serverUrl);
+  const stored = readAuth(KEYS.serverUrl);
   if (!stored) return DEFAULT_SERVER;
   const normalized = normalizeServerUrl(stored);
   if (normalized !== stored) {
-    sessionStorage.setItem(KEYS.serverUrl, normalized);
+    writeAuth(KEYS.serverUrl, normalized);
   }
   return normalized;
 }
 
 export function setServerUrl(url: string): void {
-  sessionStorage.setItem(KEYS.serverUrl, normalizeServerUrl(url));
+  writeAuth(KEYS.serverUrl, normalizeServerUrl(url));
 }
 
 export function getAccessToken(): string | null {
-  return sessionStorage.getItem(KEYS.accessToken);
+  return readAuth(KEYS.accessToken);
 }
 
 export function clearSession(): void {
-  sessionStorage.removeItem(KEYS.accessToken);
-  sessionStorage.removeItem(KEYS.refreshToken);
+  removeAuth(KEYS.accessToken);
+  removeAuth(KEYS.refreshToken);
 }
 
 export function isAuthenticated(): boolean {
   return getAccessToken() !== null;
+}
+
+export interface AuthStatusResponse {
+  device_id: string;
+  trusted_until: string | null;
+  needs_pin: boolean;
+}
+
+/** Restore a saved session without re-entering PIN when still trusted. */
+export async function restoreSession(): Promise<boolean> {
+  if (!getAccessToken()) return false;
+  try {
+    const status = await fetchAuthStatus();
+    if (status.needs_pin) {
+      clearSession();
+      return false;
+    }
+    return true;
+  } catch {
+    clearSession();
+    return false;
+  }
+}
+
+export async function fetchAuthStatus(): Promise<AuthStatusResponse> {
+  return apiRequest<AuthStatusResponse>("/api/v1/auth/status");
 }
 
 async function apiRequest<T>(
@@ -152,8 +195,8 @@ export async function unlock(pin: string): Promise<AuthResponse> {
     body: JSON.stringify(body),
   }, false);
 
-  sessionStorage.setItem(KEYS.accessToken, data.access_token);
-  sessionStorage.setItem(KEYS.refreshToken, data.refresh_token);
+  writeAuth(KEYS.accessToken, data.access_token);
+  writeAuth(KEYS.refreshToken, data.refresh_token);
   return data;
 }
 

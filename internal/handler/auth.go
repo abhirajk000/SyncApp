@@ -61,8 +61,6 @@ func (h *AuthHandler) Unlock(c *fiber.Ctx) error {
 		switch {
 		case errors.Is(err, service.ErrInvalidPIN):
 			return fiber.NewError(fiber.StatusUnauthorized, "invalid pin")
-		case errors.Is(err, service.ErrTooManyDevices):
-			return fiber.NewError(fiber.StatusConflict, "maximum number of devices reached")
 		case errors.Is(err, service.ErrDeviceRevoked):
 			return fiber.NewError(fiber.StatusUnauthorized, "device revoked")
 		default:

@@ -34,12 +34,11 @@ curl -s -X POST http://localhost:8080/api/v1/auth/unlock \
 |---|---|---|---|
 | 1.1 | Unlock with correct PIN (`POST /auth/unlock`) | `200` with 7-day access + refresh tokens, `trusted_until` | |
 | 1.2 | Unlock with wrong PIN | `401 invalid pin` | |
-| 1.3 | Unlock 6th distinct device (max 5) | `409 maximum number of devices reached` | |
-| 1.4 | Access protected endpoint without token | `401 Unauthorized` | |
-| 1.5 | Access protected endpoint with expired token | `401 token expired` | |
-| 1.6 | Status while trusted (`GET /auth/status`) | `200`, `needs_pin: false` | |
-| 1.7 | Status after `trusted_until` passes | `200`, `needs_pin: true` | |
-| 1.8 | Re-unlock same device with PIN | `200`, trust window extended 7 days | |
+| 1.3 | Access protected endpoint without token | `401 Unauthorized` | |
+| 1.4 | Access protected endpoint with expired token | `401 token expired` | |
+| 1.5 | Status while trusted (`GET /auth/status`) | `200`, `needs_pin: false` | |
+| 1.6 | Status after `trusted_until` passes | `200`, `needs_pin: true` | |
+| 1.7 | Re-unlock same device with PIN | `200`, trust window extended 7 days | |
 | 1.9 | Logout (`POST /auth/logout`) | `200`, session revoked | |
 | 1.10 | API call after logout | `401` | |
 | 1.11 | Rate limit: > 10 unlock attempts in 60 s | `429 Too Many Requests` | |

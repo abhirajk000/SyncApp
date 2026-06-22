@@ -40,7 +40,7 @@ export function LoginPage({ onSuccess }: Props) {
             <img src="/icon.png" alt="" />
           </div>
           <h1 className="ds-login-title">SyncBridge</h1>
-          <p className="ds-login-subtitle">Enter your PIN to unlock</p>
+          <p className="ds-login-subtitle">Enter your PIN to unlock — trusted for 7 days on this browser</p>
         </div>
 
         <form className="ds-login-form" onSubmit={handleSubmit}>

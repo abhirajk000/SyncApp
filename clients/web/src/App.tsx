@@ -6,6 +6,7 @@ import {
   fetchCurrentClipboard,
   fetchFiles,
   isAuthenticated,
+  restoreSession,
 } from "./api";
 import {
   AppHeader,
@@ -24,7 +25,8 @@ import { ImagesPage } from "./pages/ImagesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
-import { relativeTime, truncate } from "./lib/format";
+import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
+import { relativeTime } from "./lib/format";
 import { AppButton } from "./components";
 
 const ws = new SyncBridgeWS();
@@ -40,7 +42,8 @@ const PAGE_TITLES: Record<NavId, string> = {
 };
 
 function AppShell() {
-  const [authed, setAuthed] = useState(isAuthenticated());
+  const [booting, setBooting] = useState(true);
+  const [authed, setAuthed] = useState(false);
   const [nav, setNav] = useState<NavId>("dashboard");
   const [liveConnected, setLiveConnected] = useState(false);
   const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
@@ -78,6 +81,23 @@ function AppShell() {
   }, [refreshStats]);
 
   useEffect(() => {
+    let cancelled = false;
+    async function boot() {
+      if (isAuthenticated()) {
+        const ok = await restoreSession();
+        if (!cancelled && ok) {
+          await onAuthed();
+        }
+      }
+      if (!cancelled) setBooting(false);
+    }
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [onAuthed]);
+
+  useEffect(() => {
     if (!authed) {
       ws.disconnect();
       return;
@@ -110,9 +130,12 @@ function AppShell() {
   async function copyLatest() {
     if (!latestPopup) return;
     try {
-      await navigator.clipboard.writeText(latestPopup.content);
+      await copyEntryToClipboard(latestPopup);
       setCopied(true);
-      toast("Copied to clipboard", "success");
+      toast(
+        isImageContentType(latestPopup.content_type) ? "Image copied" : "Copied to clipboard",
+        "success",
+      );
       closeTimer.current = setTimeout(() => {
         setLatestPopup(null);
         setCopied(false);
@@ -120,6 +143,14 @@ function AppShell() {
     } catch {
       toast("Could not copy", "danger");
     }
+  }
+
+  if (booting) {
+    return (
+      <div className="ds-login-wrap ds-app">
+        <p className="ds-subtitle">Loading…</p>
+      </div>
+    );
   }
 
   if (!authed) {
@@ -173,8 +204,21 @@ function AppShell() {
             <p className="ds-subtitle" style={{ marginBottom: "var(--space-4)" }}>
               {relativeTime(latestPopup.created_at)}
             </p>
-            <AppButton variant="ghost" block onClick={copyLatest} style={{ textAlign: "left", whiteSpace: "pre-wrap" }}>
-              {truncate(latestPopup.content, 500)}
+            {isImageContentType(latestPopup.content_type) ? (
+              <img
+                src={imageDataUrl(latestPopup)}
+                alt="Clipboard"
+                className="ds-image-preview"
+                style={{ marginBottom: "var(--space-4)", cursor: "pointer" }}
+                onClick={() => void copyLatest()}
+              />
+            ) : (
+              <AppButton variant="ghost" block onClick={copyLatest} style={{ textAlign: "left", whiteSpace: "pre-wrap" }}>
+                {latestPopup.content}
+              </AppButton>
+            )}
+            <AppButton block onClick={copyLatest} style={{ marginTop: "var(--space-3)" }}>
+              {isImageContentType(latestPopup.content_type) ? "Copy Image" : "Copy"}
             </AppButton>
             {copied && (
               <p style={{ textAlign: "center", color: "var(--color-success)", marginTop: "var(--space-3)" }}>

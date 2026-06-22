@@ -3,7 +3,8 @@ import { AppButton } from "./AppButton";
 import { AppCard } from "./AppCard";
 import { IconUpload } from "./Icons";
 import { useToast } from "../design/ToastProvider";
-import { uploadFiles, type UploadProgress } from "../lib/upload";
+import { uploadFiles, type UploadProgress, type UploadResult } from "../lib/upload";
+import { copyFileToClipboard, isImageMime } from "../lib/clipboard";
 import { formatBytes } from "../lib/format";
 
 interface UploadItem {
@@ -20,6 +21,7 @@ export function QuickSendFiles() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [recentImages, setRecentImages] = useState<UploadResult[]>([]);
 
   const updateUpload = useCallback((id: string, name: string, size: number, progress: UploadProgress) => {
     setUploads((prev) => {
@@ -47,10 +49,16 @@ export function QuickSendFiles() {
       });
 
       try {
-        const { succeeded, failed } = await uploadFiles(files, (id, progress) => {
+        const { succeeded, failed, results } = await uploadFiles(files, (id, progress) => {
           const item = items.find((i) => i.id === id);
           if (item) updateUpload(id, item.name, item.size, progress);
         });
+        const uploadedImages = results.filter(
+          (r) => r.status === "success" && r.fileId && isImageMime(r.mimeType),
+        );
+        if (uploadedImages.length > 0) {
+          setRecentImages(uploadedImages);
+        }
         if (succeeded > 0) {
           toast(
             succeeded === 1 ? `${files[0].name} uploaded` : `${succeeded} files uploaded`,
@@ -71,6 +79,16 @@ export function QuickSendFiles() {
     },
     [toast, updateUpload],
   );
+
+  async function copyUploadedImage(result: UploadResult) {
+    if (!result.fileId) return;
+    try {
+      await copyFileToClipboard(result.fileId, result.mimeType);
+      toast("Image copied to clipboard", "success");
+    } catch {
+      toast("Could not copy image", "danger");
+    }
+  }
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -143,6 +161,21 @@ export function QuickSendFiles() {
           e.target.value = "";
         }}
       />
+
+      {recentImages.length > 0 && (
+        <div className="ds-upload-copy-row">
+          {recentImages.map((img) => (
+            <AppButton
+              key={img.fileId}
+              variant="secondary"
+              size="sm"
+              onClick={() => void copyUploadedImage(img)}
+            >
+              Copy {img.name}
+            </AppButton>
+          ))}
+        </div>
+      )}
 
       {uploads.length > 0 && (
         <ul className="ds-upload-list">

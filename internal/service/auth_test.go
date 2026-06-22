@@ -203,28 +203,6 @@ func TestUnlock_ExistingDevice(t *testing.T) {
 	}
 }
 
-func TestUnlock_TooManyDevices(t *testing.T) {
-	svc, _, _ := newTestAuthService()
-	ctx := context.Background()
-
-	for i := 0; i < service.MaxDevices; i++ {
-		if _, err := svc.Unlock(ctx, service.UnlockInput{
-			PIN: repository.DefaultMasterPIN, DeviceID: uuid.New(),
-			DeviceName: "Device", Platform: "web",
-		}); err != nil {
-			t.Fatalf("unlock device %d: %v", i, err)
-		}
-	}
-
-	_, err := svc.Unlock(ctx, service.UnlockInput{
-		PIN: repository.DefaultMasterPIN, DeviceID: uuid.New(),
-		DeviceName: "Extra", Platform: "web",
-	})
-	if !errors.Is(err, service.ErrTooManyDevices) {
-		t.Errorf("expected ErrTooManyDevices, got %v", err)
-	}
-}
-
 func TestStatus_NeedsPIN(t *testing.T) {
 	svc, _, devices := newTestAuthService()
 	ctx := context.Background()

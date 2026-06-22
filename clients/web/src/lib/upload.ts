@@ -66,15 +66,26 @@ async function uploadChunk(
   }
 }
 
+export interface UploadResult {
+  localId: string;
+  fileId?: string;
+  name: string;
+  mimeType: string;
+  status: "success" | "error";
+  error?: string;
+}
+
 export async function uploadFiles(
   files: File[],
   onFileProgress: (fileId: string, update: UploadProgress) => void,
-): Promise<{ succeeded: number; failed: number }> {
+): Promise<{ succeeded: number; failed: number; results: UploadResult[] }> {
   let succeeded = 0;
   let failed = 0;
+  const results: UploadResult[] = [];
 
   for (const file of files) {
     const localId = `${file.name}-${file.size}-${file.lastModified}`;
+    const mime = mimeTypeForFile(file);
     onFileProgress(localId, { progress: 0, status: "uploading" });
 
     try {
@@ -108,6 +119,13 @@ export async function uploadFiles(
 
       await completeFileUpload(init.file_id);
       onFileProgress(localId, { progress: 1, status: "success" });
+      results.push({
+        localId,
+        fileId: init.file_id,
+        name: file.name,
+        mimeType: mime,
+        status: "success",
+      });
       succeeded += 1;
     } catch (e) {
       onFileProgress(localId, {
@@ -115,9 +133,16 @@ export async function uploadFiles(
         status: "error",
         error: e instanceof Error ? e.message : "Upload failed",
       });
+      results.push({
+        localId,
+        name: file.name,
+        mimeType: mime,
+        status: "error",
+        error: e instanceof Error ? e.message : "Upload failed",
+      });
       failed += 1;
     }
   }
 
-  return { succeeded, failed };
+  return { succeeded, failed, results };
 }

@@ -2,9 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { FileEntry, fetchFiles, getAccessToken, pinFile } from "../api";
 import { AppButton, AppEmptyState, AppSection, AppSkeleton } from "../components";
 import { IconFolder } from "../components/Icons";
+import { copyFileToClipboard, isImageMime } from "../lib/clipboard";
 import { formatBytes, relativeTime } from "../lib/format";
+import { useToast } from "../design/ToastProvider";
 
 export function FilesPage() {
+  const { toast } = useToast();
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +37,15 @@ export function FilesPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pin failed");
+    }
+  }
+
+  async function copyImage(file: FileEntry) {
+    try {
+      await copyFileToClipboard(file.id, file.mime_type);
+      toast("Image copied", "success");
+    } catch {
+      toast("Could not copy image", "danger");
     }
   }
 
@@ -69,9 +81,16 @@ export function FilesPage() {
                     {formatBytes(file.total_size)} · {file.status} · {relativeTime(file.created_at)}
                   </span>
                 </div>
-                <AppButton variant="ghost" size="sm" onClick={() => togglePin(file)}>
-                  {file.is_pinned ? "Unpin" : "Pin"}
-                </AppButton>
+                <div className="ds-list-actions">
+                  {isImageMime(file.mime_type) && file.status === "ready" && (
+                    <AppButton variant="ghost" size="sm" onClick={() => void copyImage(file)}>
+                      Copy Image
+                    </AppButton>
+                  )}
+                  <AppButton variant="ghost" size="sm" onClick={() => togglePin(file)}>
+                    {file.is_pinned ? "Unpin" : "Pin"}
+                  </AppButton>
+                </div>
               </li>
             ))}
           </ul>

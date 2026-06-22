@@ -48,7 +48,6 @@ services:
 
       # PIN auth: master PIN seeded in DB (070901); override via migration only
       DEVICE_TRUST_DAYS: 7
-      MAX_DEVICES: 5
 
       JWT_SECRET: syncbridge-dev-session-secret-32chars!!
       JWT_ACCESS_TOKEN_TTL: 168h
