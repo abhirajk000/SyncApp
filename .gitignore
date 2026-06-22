@@ -34,6 +34,7 @@ data/
 node_modules/
 clients/web/dist/
 clients/web/node_modules/
+*.tsbuildinfo
 
 # Docker volumes (local dev only)
 postgres_data/
