@@ -27,6 +27,7 @@ import {
 } from "../lib/files";
 import { useToast } from "../design/ToastProvider";
 import { ItemDeleteButton } from "./ItemDeleteButton";
+import { TransferBadge } from "./TransferBadge";
 
 interface Props {
   file: FileEntry;
@@ -256,6 +257,7 @@ export function FileGridCard({ file, onPin, onDelete }: Props) {
       <p className="ds-file-grid-name" title={file.name}>
         {file.name}
       </p>
+      <TransferBadge transferMode={file.transfer_mode} />
     </article>
   );
 }

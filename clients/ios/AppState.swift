@@ -51,14 +51,25 @@ final class AppState: ObservableObject {
         }
     }
 
+    func applyEntryToPasteboard(_ entry: ClipboardEntry?) {
+        #if os(iOS)
+        guard let entry else { return }
+        if entry.contentType.hasPrefix("image/"),
+           let data = Data(base64Encoded: entry.content),
+           let image = UIImage(data: data) {
+            UIPasteboard.general.image = image
+        } else {
+            UIPasteboard.general.string = entry.content
+        }
+        #endif
+    }
+
     func loadLatestClipboard() async {
         guard let token = accessToken else { return }
         do {
             let entry = try await ClipboardAPI.fetchCurrent(serverURL: serverURL, accessToken: token)
             latestClipboardPopup = entry
-            #if os(iOS)
-            UIPasteboard.general.string = entry.content
-            #endif
+            applyEntryToPasteboard(entry)
         } catch {
             // No clipboard yet.
         }

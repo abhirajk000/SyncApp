@@ -309,3 +309,42 @@ struct APIError: Decodable, Error {
 }
 
 struct EmptyResponse: Decodable {}
+
+// ── Network / diagnostics ─────────────────────────────────────────────────────
+
+struct DiagnosticsResponse: Decodable {
+    let serverVersion: String
+    let clientIp: String
+    let localPeers: Int
+    let mdnsEnabled: Bool
+    let turnEnabled: Bool
+    enum CodingKeys: String, CodingKey {
+        case serverVersion = "server_version"
+        case clientIp = "client_ip"
+        case localPeers = "local_peers"
+        case mdnsEnabled = "mdns_enabled"
+        case turnEnabled = "turn_enabled"
+    }
+}
+
+struct LocalPeerResponse: Decodable, Identifiable {
+    let deviceId: String
+    let addrs: [String]
+    let port: Int
+    let updatedAt: String
+    var id: String { deviceId }
+    enum CodingKeys: String, CodingKey {
+        case deviceId = "device_id"
+        case addrs, port
+        case updatedAt = "updated_at"
+    }
+}
+
+struct LocalPeersResponse: Decodable {
+    let peers: [LocalPeerResponse]
+}
+
+struct AdvertiseRequest: Encodable {
+    let addrs: [String]
+    let port: Int
+}

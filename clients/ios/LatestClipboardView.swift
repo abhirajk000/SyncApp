@@ -3,11 +3,12 @@
 import SwiftUI
 
 struct LatestClipboardView: View {
-    let content: String
-    let createdAt: String
+    let entry: ClipboardEntry
     let onDismiss: () -> Void
 
     @State private var copied = false
+
+    private var isImage: Bool { entry.contentType.hasPrefix("image/") }
 
     var body: some View {
         ZStack {
@@ -22,22 +23,31 @@ struct LatestClipboardView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text(relativeTime(createdAt))
+                    Text(relativeTime(entry.createdAt))
                         .font(DS.Font.caption())
                         .foregroundStyle(.secondary)
 
                     Button {
-                        UIPasteboard.general.string = content
+                        applyToPasteboard()
                         copied = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { onDismiss() }
                     } label: {
-                        Text(displayContent)
-                            .font(DS.Font.body())
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(DS.Space.md)
-                            .background(Color.primary.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+                        Group {
+                            if isImage, let uiImage = decodeImage() {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 200)
+                            } else {
+                                Text(displayContent)
+                                    .font(DS.Font.body())
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(DS.Space.md)
+                        .background(Color.primary.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
                     }
                     .buttonStyle(.plain)
 
@@ -54,9 +64,24 @@ struct LatestClipboardView: View {
     }
 
     private var displayContent: String {
-        let t = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let t = entry.content.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.count > 500 { return String(t.prefix(500)) + "…" }
         return t.isEmpty ? "(empty)" : t
+    }
+
+    private func decodeImage() -> UIImage? {
+        guard let data = Data(base64Encoded: entry.content) else { return nil }
+        return UIImage(data: data)
+    }
+
+    private func applyToPasteboard() {
+        #if os(iOS)
+        if isImage, let image = decodeImage() {
+            UIPasteboard.general.image = image
+        } else {
+            UIPasteboard.general.string = entry.content
+        }
+        #endif
     }
 
     private func relativeTime(_ iso: String) -> String {

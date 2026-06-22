@@ -18,6 +18,7 @@ import { IconPin } from "../components/Icons";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
 import { relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
+import { TransferBadge } from "../components/TransferBadge";
 
 function ClipboardHistoryItem({
   entry,
@@ -55,6 +56,7 @@ function ClipboardHistoryItem({
         <span className="ds-list-meta">
           {entry.content_type} · {relativeTime(entry.created_at)}
         </span>
+        <TransferBadge transferMode={entry.transfer_route ?? "relay"} className="ds-transfer-badge--inline" />
       </div>
       <div className="ds-list-actions">
         <AppButton variant="ghost" size="sm" onClick={() => void copy()}>

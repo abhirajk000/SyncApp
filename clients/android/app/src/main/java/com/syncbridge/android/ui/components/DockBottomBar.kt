@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -59,9 +60,10 @@ fun DockBottomBar(
                 .height(64.dp)
                 .align(Alignment.BottomCenter),
             shape = RoundedCornerShape(999.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+            color = GlassColors.dock(),
             shadowElevation = 16.dp,
-            tonalElevation = 2.dp,
+            tonalElevation = 0.dp,
+            border = BorderStroke(1.dp, GlassColors.border()),
         ) {
             Row(
                 modifier = Modifier
@@ -125,36 +127,39 @@ private fun DockNavItem(
     onNavigate: (MainTab) -> Unit,
 ) {
     val selected = current == tab
-    val color = if (selected) SyncTokens.Teal else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.65f)
+    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.65f)
+    val activeGreen = Color(0xFF15803D)
+    val activeBg = Color(0xFFBBF7D0).copy(alpha = 0.9f)
+    val activeBorder = Color(0xFF4ADE80).copy(alpha = 0.55f)
 
     Surface(
         onClick = { onNavigate(tab) },
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
-        } else {
-            Color.Transparent
-        },
-        border = if (selected) {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-        } else {
-            null
-        },
-        shadowElevation = if (selected) 4.dp else 0.dp,
-        tonalElevation = if (selected) 2.dp else 0.dp,
+        color = if (selected) activeBg else Color.Transparent,
+        border = if (selected) BorderStroke(1.dp, activeBorder) else null,
+        shadowElevation = if (selected) 3.dp else 0.dp,
+        modifier = Modifier
+            .width(72.dp)
+            .height(52.dp),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
-            Icon(icon, contentDescription = tab.label, tint = color, modifier = Modifier.size(22.dp))
+            Icon(
+                icon,
+                contentDescription = tab.label,
+                tint = if (selected) activeGreen else inactiveColor,
+                modifier = Modifier.size(22.dp),
+            )
             Text(
                 tab.label,
-                fontSize = 10.sp,
-                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal,
-                color = color,
+                fontSize = 9.sp,
+                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
+                color = if (selected) activeGreen else inactiveColor,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
     }

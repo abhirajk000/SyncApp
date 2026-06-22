@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.syncbridge.android.data.ClipboardEntry
 import com.syncbridge.android.ui.components.AppEmptyState
 import com.syncbridge.android.ui.components.AppSectionTitle
+import com.syncbridge.android.ui.components.GlassListRow
 import androidx.compose.ui.unit.dp
 import com.syncbridge.android.ui.theme.SyncTokens
 import com.syncbridge.android.util.relativeTime
@@ -47,15 +48,10 @@ fun PinnedScreen(
             }
         } else {
             items(pinned, key = { it.id }) { entry ->
-                Surface(
-                    shape = RoundedCornerShape(SyncTokens.RadiusSm),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 1.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { clipboard.setText(AnnotatedString(entry.content)) },
+                GlassListRow(
+                    onClick = { clipboard.setText(AnnotatedString(entry.content)) },
                 ) {
-                    Row(Modifier.padding(SyncTokens.Space3), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
                             Text(entry.content, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             Text(

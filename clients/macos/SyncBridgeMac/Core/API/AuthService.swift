@@ -119,6 +119,25 @@ final class AuthService {
         let _: EmptyResponse = try await api.request("/api/v1/files/\(id)/delivered", method: "POST", body: EmptyBody())
     }
 
+    // ── Network / diagnostics ─────────────────────────────────────────────────
+
+    func fetchDiagnostics() async throws -> DiagnosticsResponse {
+        try await api.request("/api/v1/diagnostics")
+    }
+
+    func fetchLocalPeers(addrs: String = "") async throws -> LocalPeersResponse {
+        let q = addrs.isEmpty ? "" : "?addrs=\(addrs.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? addrs)"
+        return try await api.request("/api/v1/local/peers\(q)")
+    }
+
+    func advertiseLocalAddrs(_ addrs: [String], port: Int = 0) async throws {
+        let _: EmptyResponse = try await api.request(
+            "/api/v1/local/advertise",
+            method: "POST",
+            body: AdvertiseRequest(addrs: addrs, port: port)
+        )
+    }
+
     // ── Private ───────────────────────────────────────────────────────────────
 
     private func storeTokens(from resp: AuthResponse) {

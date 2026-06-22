@@ -45,6 +45,8 @@ export interface ClipboardEntry {
   source_device_id: string;
   pinned: boolean;
   created_at: string;
+  /** Client-side route label when known */
+  transfer_route?: string;
 }
 
 export interface ClipboardHistoryResponse {
@@ -60,6 +62,7 @@ export interface FileEntry {
   status: string;
   is_pinned: boolean;
   created_at: string;
+  transfer_mode?: string;
 }
 
 export interface FileListResponse {
@@ -256,4 +259,63 @@ export async function completeFileUpload(fileId: string): Promise<FileEntry> {
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+export interface DiagnosticsResponse {
+  server_version: string;
+  client_ip: string;
+  local_peers: number;
+  mdns_enabled: boolean;
+  stun_urls: string[];
+  turn_enabled: boolean;
+  storage_backend: string;
+  default_retention_minutes: number;
+  retention_minutes: number;
+}
+
+export interface LocalPeer {
+  device_id: string;
+  addrs: string[];
+  port: number;
+  updated_at: string;
+}
+
+export interface LocalPeersResponse {
+  peers: LocalPeer[];
+}
+
+export async function fetchDiagnostics(): Promise<DiagnosticsResponse> {
+  return apiRequest<DiagnosticsResponse>("/api/v1/diagnostics");
+}
+
+export async function fetchLocalPeers(addrs = ""): Promise<LocalPeersResponse> {
+  const q = addrs ? `?addrs=${encodeURIComponent(addrs)}` : "";
+  return apiRequest<LocalPeersResponse>(`/api/v1/local/peers${q}`);
+}
+
+export async function advertiseLocalAddrs(addrs: string[], port = 0): Promise<void> {
+  await apiRequest<void>("/api/v1/local/advertise", {
+    method: "POST",
+    body: JSON.stringify({ addrs, port }),
+  });
+}
+
+export interface DeviceEntry {
+  id: string;
+  name: string;
+  platform: string;
+  fingerprint: string;
+  trusted: boolean;
+  last_seen_at?: string;
+  created_at: string;
+  is_current: boolean;
+}
+
+export interface DeviceListResponse {
+  devices: DeviceEntry[];
+  total: number;
+}
+
+export async function fetchDevices(): Promise<DeviceListResponse> {
+  return apiRequest<DeviceListResponse>("/api/v1/devices");
 }

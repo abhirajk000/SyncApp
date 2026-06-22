@@ -1,4 +1,4 @@
-// DesignSystem.swift — Premium SyncBridge tokens
+// DesignSystem.swift — Premium SyncBridge tokens + glass
 
 import SwiftUI
 
@@ -15,6 +15,15 @@ enum DS {
         static let card = SwiftUI.Color.white
         static let text = SwiftUI.Color(red: 0.05, green: 0.07, blue: 0.13)
         static let muted = SwiftUI.Color(red: 0.39, green: 0.45, blue: 0.55)
+        static let activeGreen = SwiftUI.Color(red: 0.08, green: 0.50, blue: 0.24)
+        static let activeGreenBg = SwiftUI.Color(red: 0.73, green: 0.97, blue: 0.82)
+    }
+
+    enum Glass {
+        static let border = SwiftUI.Color.white.opacity(0.85)
+        static let borderDark = SwiftUI.Color.white.opacity(0.1)
+        static let shadow = SwiftUI.Color.black.opacity(0.08)
+        static let highlight = SwiftUI.Color.white.opacity(0.65)
     }
 
     enum Space {
@@ -30,6 +39,8 @@ enum DS {
         static let sm: CGFloat = 8
         static let md: CGFloat = 14
         static let lg: CGFloat = 20
+        static let xl: CGFloat = 28
+        static let full: CGFloat = 9999
     }
 
     enum Font {
@@ -58,6 +69,71 @@ enum DS {
     }
 }
 
+// MARK: - Liquid background
+
+struct LiquidBackground: View {
+    var body: some View {
+        ZStack {
+            DS.Color.bg.ignoresSafeArea()
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [DS.Color.primary.opacity(0.18), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 260
+                    )
+                )
+                .frame(width: 520, height: 520)
+                .offset(x: -120, y: -180)
+                .blur(radius: 40)
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [DS.Color.secondary.opacity(0.14), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 220
+                    )
+                )
+                .frame(width: 440, height: 440)
+                .offset(x: 140, y: 220)
+                .blur(radius: 36)
+        }
+    }
+}
+
+// MARK: - Glass modifier
+
+struct GlassCardModifier: ViewModifier {
+    var cornerRadius: CGFloat = DS.Radius.lg
+    var hero: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                if hero {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(DS.heroGradient)
+                } else {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(.ultraThinMaterial)
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(hero ? DS.Color.primary.opacity(0.22) : DS.Glass.border.opacity(0.55), lineWidth: 1)
+            )
+            .shadow(color: hero ? DS.Color.primary.opacity(0.14) : DS.Glass.shadow, radius: hero ? 14 : 10, y: hero ? 6 : 4)
+    }
+}
+
+extension View {
+    func glassCard(cornerRadius: CGFloat = DS.Radius.lg, hero: Bool = false) -> some View {
+        modifier(GlassCardModifier(cornerRadius: cornerRadius, hero: hero))
+    }
+}
+
 // MARK: - Premium components
 
 struct AppCard<Content: View>: View {
@@ -67,20 +143,7 @@ struct AppCard<Content: View>: View {
     var body: some View {
         content
             .padding(DS.Space.lg)
-            .background {
-                if hero {
-                    RoundedRectangle(cornerRadius: DS.Radius.lg)
-                        .fill(DS.heroGradient)
-                } else {
-                    RoundedRectangle(cornerRadius: DS.Radius.lg)
-                        .fill(.background)
-                }
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.lg)
-                    .stroke(hero ? DS.Color.primary.opacity(0.2) : Color.primary.opacity(0.07), lineWidth: 1)
-            )
-            .shadow(color: hero ? DS.Color.primary.opacity(0.12) : .black.opacity(0.05), radius: hero ? 12 : 6, y: hero ? 6 : 3)
+            .glassCard(hero: hero)
     }
 }
 
@@ -116,7 +179,8 @@ struct AppButton: View {
         case .secondary:
             RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.secondary.opacity(0.12))
         case .ghost:
-            RoundedRectangle(cornerRadius: DS.Radius.md).fill(Color.primary.opacity(0.05))
+            RoundedRectangle(cornerRadius: DS.Radius.md).fill(.ultraThinMaterial)
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.md).stroke(DS.Glass.border.opacity(0.4)))
         case .danger:
             RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.danger.opacity(0.12))
         }
@@ -145,9 +209,9 @@ struct AppBadge: View {
         }
         .padding(.horizontal, DS.Space.sm + 2)
         .padding(.vertical, DS.Space.xs + 2)
-        .background(bg.opacity(0.12))
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(bg.opacity(0.25)))
         .foregroundStyle(bg)
-        .clipShape(Capsule())
     }
 
     private var bg: Color {
@@ -182,9 +246,7 @@ struct AppEmptyState: View {
                 .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(DS.Color.primary)
                 .frame(width: 64, height: 64)
-                .background(DS.heroGradient)
-                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
-                .overlay(RoundedRectangle(cornerRadius: DS.Radius.lg).stroke(DS.Color.primary.opacity(0.15)))
+                .glassCard(cornerRadius: DS.Radius.lg, hero: true)
             Text(title).font(DS.Font.title())
             Text(description)
                 .font(DS.Font.caption())
@@ -214,6 +276,17 @@ struct AppSectionHeader: View {
     }
 }
 
+struct GlassListRow<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.vertical, DS.Space.md)
+            .glassCard(cornerRadius: DS.Radius.md)
+    }
+}
+
 struct PremiumTextField: View {
     var label: String = ""
     @Binding var text: String
@@ -234,9 +307,11 @@ struct PremiumTextField: View {
             .textFieldStyle(.plain)
             .font(DS.Font.body())
             .padding(DS.Space.md)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
-            .overlay(RoundedRectangle(cornerRadius: DS.Radius.md).stroke(Color.primary.opacity(0.08)))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .stroke(DS.Glass.border.opacity(0.45))
+            )
         }
     }
 }

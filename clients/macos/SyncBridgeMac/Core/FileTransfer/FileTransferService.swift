@@ -1,12 +1,10 @@
 // FileTransferService.swift
 // Chunked file upload/download with resume support.
 //
-// Transfer routing:
-//   Same LAN  → transfer_mode = "webrtc": the server Phase 6 signaling is
-//               triggered; the actual data flows over an NWConnection directly
-//               to the peer.  Server still stores a backup copy via relay so
-//               offline devices can download later.
-//   Other net → transfer_mode = "relay": standard chunked HTTP upload.
+// Transfer routing (automatic):
+//   ≤100 MB single file → relay
+//   >100 MB, folders, multi-file → webrtc with relay fallback
+// Clipboard uses relay only (separate system).
 //
 // Chunk size: 4 MiB by default; configurable.
 // Integrity: SHA-256 of each chunk (X-Chunk-Hash header) + full file hash.
@@ -29,13 +27,15 @@ final class FileTransferService {
 
     private let api: APIClient
     private let authService: AuthService
+    private weak var networkManager: NetworkManager?
 
     // In-progress uploads keyed by local file URL.
     private var uploads: [URL: String] = [:]   // fileURL → server fileId
 
-    init(api: APIClient = .shared, authService: AuthService) {
+    init(api: APIClient = .shared, authService: AuthService, networkManager: NetworkManager? = nil) {
         self.api = api
         self.authService = authService
+        self.networkManager = networkManager
     }
 
     // ── Upload ────────────────────────────────────────────────────────────────
@@ -44,12 +44,19 @@ final class FileTransferService {
     /// Detects LAN peers and switches to relay vs webrtc mode automatically.
     func upload(
         fileURL: URL,
+        fileCount: Int = 1,
+        isFolder: Bool = false,
         onProgress: @escaping TransferProgressHandler,
         onComplete: @escaping TransferCompletionHandler
     ) {
         Task {
             do {
-                let result = try await uploadAsync(fileURL: fileURL, onProgress: onProgress)
+                let result = try await uploadAsync(
+                    fileURL: fileURL,
+                    fileCount: fileCount,
+                    isFolder: isFolder,
+                    onProgress: onProgress
+                )
                 await MainActor.run { onComplete(.success(result)) }
             } catch {
                 await MainActor.run { onComplete(.failure(error)) }
@@ -59,6 +66,8 @@ final class FileTransferService {
 
     func uploadAsync(
         fileURL: URL,
+        fileCount: Int = 1,
+        isFolder: Bool = false,
         onProgress: TransferProgressHandler? = nil
     ) async throws -> FileResponse {
         let data = try Data(contentsOf: fileURL)
@@ -67,6 +76,15 @@ final class FileTransferService {
         let fileName = fileURL.lastPathComponent
         let chunkCount = Int(ceil(Double(data.count) / Double(Self.chunkSize)))
 
+        let route = await MainActor.run {
+            networkManager?.resolveUploadRoute(
+                fileSizeBytes: data.count,
+                fileCount: fileCount,
+                isFolder: isFolder
+            ) ?? ("relay", "cloud", nil, nil)
+        }
+        let t0 = CFAbsoluteTimeGetCurrent()
+
         // ── Init upload ───────────────────────────────────────────────────────
         let initReq = FileInitRequest(
             name: fileName,
@@ -74,7 +92,7 @@ final class FileTransferService {
             totalSize: Int64(data.count),
             chunkSize: Self.chunkSize,
             fileHash: fileHash,
-            transferMode: transferMode(for: data.count),
+            transferMode: route.0,
             forceRelay: false
         )
         let initResp = try await authService.initFileUpload(initReq)
@@ -106,6 +124,18 @@ final class FileTransferService {
         // ── Complete ──────────────────────────────────────────────────────────
         let result = try await authService.completeFileUpload(fileId: fileId)
         uploads.removeValue(forKey: fileURL)
+        let elapsed = max(CFAbsoluteTimeGetCurrent() - t0, 0.001)
+        let bps = Int64(Double(data.count) / elapsed)
+        await MainActor.run {
+            networkManager?.logTransfer(
+                name: fileName,
+                method: route.1,
+                fallback: route.2,
+                bytesPerSec: bps,
+                peerId: route.3
+            )
+            networkManager?.markSync()
+        }
         return result
     }
 
@@ -144,13 +174,6 @@ final class FileTransferService {
         _ = try? await authService.markFileDelivered(id: fileId)
         onProgress?(1)
         return finalDest
-    }
-
-    /// Picks relay vs webrtc based on global size rules (server enforces >1 GB).
-    private func transferMode(for byteCount: Int) -> String {
-        let mb100 = 100 * 1024 * 1024
-        if byteCount <= mb100 { return "relay" }
-        return "webrtc"
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

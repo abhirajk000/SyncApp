@@ -38,6 +38,7 @@ type signalingStore interface {
 type localPeerStore interface {
 	Upsert(ctx context.Context, lp *repository.LocalPeer) error
 	FindByUserID(ctx context.Context, userID uuid.UUID) ([]*repository.LocalPeer, error)
+	FindByDeviceID(ctx context.Context, deviceID uuid.UUID) (*repository.LocalPeer, error)
 	DeleteByDeviceID(ctx context.Context, deviceID uuid.UUID) error
 }
 
@@ -266,6 +267,15 @@ func (s *SignalingService) AdvertiseLocalAddrs(
 	addrs []string,
 	port int,
 ) error {
+	var prevAddrs []string
+	existing, err := s.peers.FindByDeviceID(ctx, deviceID)
+	if err != nil {
+		return fmt.Errorf("lookup local peer: %w", err)
+	}
+	if existing != nil {
+		prevAddrs = existing.Addrs
+	}
+
 	lp := &repository.LocalPeer{
 		ID:        uuid.New(),
 		UserID:    userID,
@@ -278,8 +288,10 @@ func (s *SignalingService) AdvertiseLocalAddrs(
 		return fmt.Errorf("upsert local peer: %w", err)
 	}
 
-	// Find and notify same-network peers.
-	s.notifySameNetworkPeers(ctx, userID, deviceID, addrs)
+	// Notify only on first advertise or when LAN addresses change — not every heartbeat.
+	if existing == nil || !addrsEqual(prevAddrs, addrs) {
+		s.notifySameNetworkPeers(ctx, userID, deviceID, addrs)
+	}
 	return nil
 }
 
@@ -420,6 +432,23 @@ func sameNetwork(addrs1, addrs2 []string) bool {
 		}
 	}
 	return false
+}
+
+func addrsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]int, len(a))
+	for _, s := range a {
+		seen[s]++
+	}
+	for _, s := range b {
+		if seen[s] == 0 {
+			return false
+		}
+		seen[s]--
+	}
+	return true
 }
 
 // generateTURNCredentials produces RFC 8489 time-limited HMAC-SHA1 credentials

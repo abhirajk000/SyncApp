@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.syncbridge.android.R
 import com.syncbridge.android.ui.components.AppCard
+import com.syncbridge.android.ui.components.LiquidBackground
 import com.syncbridge.android.ui.theme.SyncTokens
 
 @Composable
@@ -45,19 +46,8 @@ fun LoginScreen(
 ) {
     var pin by remember { mutableStateOf("") }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        SyncTokens.Teal.copy(0.08f),
-                        SyncTokens.Indigo.copy(0.04f),
-                        MaterialTheme.colorScheme.background,
-                    ),
-                ),
-            ),
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        LiquidBackground()
         Column(
             modifier = Modifier
                 .fillMaxSize()

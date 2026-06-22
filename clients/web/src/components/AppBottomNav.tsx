@@ -41,10 +41,12 @@ function DockItem({ item, active, onNavigate }: ItemProps) {
       onClick={() => onNavigate(item.id)}
       aria-current={active ? "page" : undefined}
     >
-      <span className="ds-dock-nav__icon">
-        <Icon size={22} strokeWidth={1.75} />
+      <span className="ds-dock-nav__pill">
+        <span className="ds-dock-nav__icon">
+          <Icon size={22} strokeWidth={active ? 2 : 1.75} />
+        </span>
+        <span className="ds-dock-nav__label">{item.label}</span>
       </span>
-      <span className="ds-dock-nav__label">{item.label}</span>
     </button>
   );
 }

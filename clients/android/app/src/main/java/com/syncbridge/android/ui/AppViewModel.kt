@@ -56,6 +56,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        viewModelScope.launch {
+            SyncEventBus.filesUpdated.collect {
+                refreshFiles()
+            }
+        }
         if (api.isAuthenticated) {
             refreshAll()
             SyncClipboardService.start(application)

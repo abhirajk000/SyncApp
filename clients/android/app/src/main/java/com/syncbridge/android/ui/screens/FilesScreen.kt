@@ -46,6 +46,9 @@ import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.FileEntry
 import com.syncbridge.android.ui.components.AppEmptyState
 import com.syncbridge.android.ui.components.AppSectionTitle
+import com.syncbridge.android.ui.components.GlassListRow
+import com.syncbridge.android.ui.components.GlassSurface
+import com.syncbridge.android.ui.components.TransferBadge
 import com.syncbridge.android.ui.theme.SyncTokens
 import com.syncbridge.android.util.formatBytes
 import com.syncbridge.android.util.relativeTime
@@ -107,14 +110,8 @@ fun FilesScreen(
 
 @Composable
 private fun PinnedFileRow(file: FileEntry, onTogglePin: (FileEntry) -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(SyncTokens.RadiusSm),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    GlassListRow {
         Row(
-            Modifier.padding(SyncTokens.Space3),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -125,6 +122,7 @@ private fun PinnedFileRow(file: FileEntry, onTogglePin: (FileEntry) -> Unit) {
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                TransferBadge(transferMode = file.transferMode)
             }
             OutlinedButton(onClick = { onTogglePin(file) }) { Text("Unpin") }
         }
@@ -141,13 +139,12 @@ fun FileGridCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SyncTokens.Space2),
     ) {
-        Surface(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f),
             shape = RoundedCornerShape(SyncTokens.RadiusXl),
-            color = Color.White,
-            shadowElevation = 6.dp,
+            elevation = 6.dp,
         ) {
             FilePreviewContent(file = file, api = api)
         }
@@ -160,6 +157,7 @@ fun FileGridCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = SyncTokens.Space1),
         )
+        TransferBadge(transferMode = file.transferMode)
         OutlinedButton(onClick = { onTogglePin(file) }, modifier = Modifier.padding(bottom = SyncTokens.Space1)) {
             Text("Pin", fontSize = 11.sp)
         }

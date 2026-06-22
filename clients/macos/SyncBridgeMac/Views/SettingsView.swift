@@ -44,6 +44,11 @@ struct SettingsView: View {
                     }
             }
 
+            // ── Network ───────────────────────────────────────────────────────
+            if case .loggedIn = appState.authState {
+                NetworkSettingsView()
+            }
+
             // ── Devices ───────────────────────────────────────────────────────
             if case .loggedIn = appState.authState {
                 Section("Devices") {

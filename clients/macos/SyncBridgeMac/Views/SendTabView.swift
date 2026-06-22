@@ -47,10 +47,18 @@ struct SendTabView: View {
         }
         .padding(DS.Space.md)
         .onDrop(of: ["public.file-url"], isTargeted: nil) { providers in
-            providers.forEach { provider in
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    if let url { Task { @MainActor in appState.uploadFile(url) } }
+            Task { @MainActor in
+                var urls: [URL] = []
+                for provider in providers {
+                    if let url = try? await provider.loadItem(forTypeIdentifier: "public.file-url") as? URL {
+                        urls.append(url)
+                    } else if let url = await withCheckedContinuation({ (cont: CheckedContinuation<URL?, Never>) in
+                        _ = provider.loadObject(ofClass: URL.self) { url, _ in cont.resume(returning: url) }
+                    }) {
+                        urls.append(url)
+                    }
                 }
+                if !urls.isEmpty { appState.uploadFiles(urls) }
             }
             return true
         }
@@ -75,7 +83,7 @@ struct SendTabView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         if panel.runModal() == .OK {
-            panel.urls.forEach { appState.uploadFile($0) }
+            appState.uploadFiles(panel.urls)
         }
     }
 }

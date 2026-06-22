@@ -1,16 +1,33 @@
 import { AppButton, AppCard, AppIcon, AppSection } from "../components";
 import { IconLogout } from "../components/Icons";
 import { useTheme } from "../design/ThemeProvider";
+import { ChevronRight, Wifi } from "lucide-react";
 
 interface Props {
   onLogout: () => void;
+  onOpenNetwork: () => void;
 }
 
-export function SettingsPage({ onLogout }: Props) {
+export function SettingsPage({ onLogout, onOpenNetwork }: Props) {
   const { theme, setTheme } = useTheme();
 
   return (
     <div className="ds-content-narrow">
+      <AppSection title="Network">
+        <AppCard>
+          <button type="button" className="ds-settings-link" onClick={onOpenNetwork}>
+            <span className="ds-settings-link__icon">
+              <Wifi size={22} strokeWidth={1.75} />
+            </span>
+            <span className="ds-settings-link__body">
+              <strong>Network &amp; Transfer</strong>
+              <span className="ds-subtitle">Status, LAN peers, transfer mode</span>
+            </span>
+            <ChevronRight size={20} className="ds-settings-link__chevron" strokeWidth={2} />
+          </button>
+        </AppCard>
+      </AppSection>
+
       <AppSection title="Appearance">
         <AppCard>
           <p className="ds-subtitle" style={{ marginBottom: "var(--space-3)" }}>Theme</p>

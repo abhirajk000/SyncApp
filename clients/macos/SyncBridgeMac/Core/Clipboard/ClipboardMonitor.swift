@@ -69,23 +69,30 @@ final class ClipboardMonitor {
             let pb = NSPasteboard.general
             pb.clearContents()
 
-            switch entry.contentType {
-            case "text/plain", "text/uri-list":
-                pb.setString(entry.content, forType: .string)
-                if entry.contentType == "text/uri-list",
-                   let url = URL(string: entry.content) {
-                    pb.setString(entry.content, forType: .URL)
-                    pb.writeObjects([url as NSURL])
+            if entry.contentType.hasPrefix("image/"),
+               let data = Data(base64Encoded: entry.content),
+               let image = NSImage(data: data) {
+                pb.writeObjects([image])
+                self.lastSyncedHash = sha256Data(data)
+            } else {
+                switch entry.contentType {
+                case "text/plain", "text/uri-list":
+                    pb.setString(entry.content, forType: .string)
+                    if entry.contentType == "text/uri-list",
+                       let url = URL(string: entry.content) {
+                        pb.setString(entry.content, forType: .URL)
+                        pb.writeObjects([url as NSURL])
+                    }
+                case "text/html":
+                    if let data = entry.content.data(using: .utf8) {
+                        pb.setData(data, forType: .html)
+                    }
+                    pb.setString(entry.content, forType: .string)
+                default:
+                    pb.setString(entry.content, forType: .string)
                 }
-            case "text/html":
-                if let data = entry.content.data(using: .utf8) {
-                    pb.setData(data, forType: .html)
-                }
-                pb.setString(entry.content, forType: .string)
-            default:
-                pb.setString(entry.content, forType: .string)
+                self.lastSyncedHash = sha256(entry.content)
             }
-            self.lastSyncedHash = sha256(entry.content)
             self.lastChangeCount = pb.changeCount
         }
 
@@ -106,7 +113,12 @@ final class ClipboardMonitor {
         // Read content and determine type.
         guard let (content, contentType) = readPasteboard(pb) else { return }
 
-        let hash = sha256(content)
+        let hash: String
+        if contentType.hasPrefix("image/"), let data = Data(base64Encoded: content) {
+            hash = sha256Data(data)
+        } else {
+            hash = sha256(content)
+        }
         guard hash != lastSyncedHash else { return } // deduplicate
         lastSyncedHash = hash
 
@@ -125,22 +137,45 @@ final class ClipboardMonitor {
     // MARK: – Pasteboard reading
 
     private func readPasteboard(_ pb: NSPasteboard) -> (String, String)? {
-        // Prefer rich HTML if available.
+        if let imageData = readImageData(from: pb) {
+            return imageData
+        }
         if let html = pb.string(forType: .html), !html.isEmpty {
             return (html, "text/html")
         }
-        // Plain string / URL.
         if let str = pb.string(forType: .string), !str.isEmpty {
-            // Detect URL-only content.
             if let _ = URL(string: str), str.hasPrefix("http") {
                 return (str, "text/uri-list")
             }
             return (str, "text/plain")
         }
-        // URL objects.
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
            let first = urls.first {
             return (first.absoluteString, "text/uri-list")
+        }
+        return nil
+    }
+
+    private static let maxImageBytes = 10 * 1024 * 1024
+
+    private func readImageData(from pb: NSPasteboard) -> (String, String)? {
+        let types: [NSPasteboard.PasteboardType] = [.png, .tiff]
+        for type in types {
+            guard let data = pb.data(forType: type), !data.isEmpty else { continue }
+            guard let image = NSImage(data: data),
+                  let tiff = image.tiffRepresentation,
+                  let bitmap = NSBitmapImageRep(data: tiff),
+                  let png = bitmap.representation(using: .png, properties: [:]) else { continue }
+            guard png.count <= Self.maxImageBytes else { continue }
+            return (png.base64EncodedString(), "image/png")
+        }
+        if let images = pb.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage],
+           let image = images.first,
+           let tiff = image.tiffRepresentation,
+           let bitmap = NSBitmapImageRep(data: tiff),
+           let png = bitmap.representation(using: .png, properties: [:]),
+           png.count <= Self.maxImageBytes {
+            return (png.base64EncodedString(), "image/png")
         }
         return nil
     }
@@ -149,6 +184,10 @@ final class ClipboardMonitor {
 // MARK: – SHA-256 helper
 
 private func sha256(_ input: String) -> String {
-    let digest = SHA256.hash(data: Data(input.utf8))
+    sha256Data(Data(input.utf8))
+}
+
+private func sha256Data(_ data: Data) -> String {
+    let digest = SHA256.hash(data: data)
     return digest.compactMap { String(format: "%02x", $0) }.joined()
 }

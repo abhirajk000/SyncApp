@@ -18,6 +18,7 @@ import org.json.JSONObject
 
 class WSClient(
     private val api: ApiClient,
+    private val networkManager: NetworkManager? = null,
     private val onClipboardNew: (ClipboardEntry) -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -43,23 +44,44 @@ class WSClient(
         socket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 SyncEventBus.setConnected(true)
+                networkManager?.setWsConnected(true)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val json = JSONObject(text)
-                    if (json.optString("type") == "clipboard.new") {
-                        val payload = json.getJSONObject("payload")
-                        onClipboardNew(
-                            ClipboardEntry(
-                                id = payload.getString("entry_id"),
-                                contentType = payload.optString("content_type", "text/plain"),
-                                content = payload.getString("content"),
-                                sourceDeviceId = payload.optString("source_device_id", ""),
-                                pinned = payload.optBoolean("pinned", false),
-                                createdAt = payload.optString("created_at", ""),
-                            ),
-                        )
+                    when (json.optString("type")) {
+                        "clipboard.new" -> {
+                            val payload = json.getJSONObject("payload")
+                            onClipboardNew(
+                                ClipboardEntry(
+                                    id = payload.getString("entry_id"),
+                                    contentType = payload.optString("content_type", "text/plain"),
+                                    content = payload.getString("content"),
+                                    sourceDeviceId = payload.optString("source_device_id", ""),
+                                    pinned = payload.optBoolean("pinned", false),
+                                    createdAt = payload.optString("created_at", ""),
+                                ),
+                            )
+                            networkManager?.markSync()
+                        }
+                        "signal.peer" -> {
+                            val payload = json.optJSONObject("payload") ?: return
+                            val deviceId = payload.optString("device_id", "")
+                            if (deviceId.isBlank()) return
+                            val addrsArr = payload.optJSONArray("addrs") ?: org.json.JSONArray()
+                            val addrs = (0 until addrsArr.length()).map { addrsArr.getString(it) }
+                            val port = payload.optInt("port", 0)
+                            if (networkManager?.handleSignalPeer(deviceId, addrs, port) == true) {
+                                SyncEventBus.emitNearbyAlert(deviceId)
+                            }
+                        }
+                        "file.ready", "file.progress" -> {
+                            networkManager?.markSync()
+                            if (json.optString("type") == "file.ready") {
+                                SyncEventBus.emitFilesUpdated()
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "ws parse: ${e.message}")
@@ -68,11 +90,13 @@ class WSClient(
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 SyncEventBus.setConnected(false)
+                networkManager?.setWsConnected(false)
                 scheduleReconnect()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 SyncEventBus.setConnected(false)
+                networkManager?.setWsConnected(false)
                 scheduleReconnect()
             }
         })

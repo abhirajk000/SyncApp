@@ -1,5 +1,5 @@
-import { AppBadge } from "./AppBadge";
 import { AppBrand } from "./AppBrand";
+import { ConnectionStatusPopover } from "./ConnectionStatusPopover";
 import { IconMoon, IconSun } from "./Icons";
 import { useTheme } from "../design/ThemeProvider";
 
@@ -25,9 +25,7 @@ export function AppTopBar({ connected }: Props) {
     <header className="ds-topbar">
       <AppBrand size="sm" />
       <div className="ds-topbar-actions">
-        {connected !== undefined && (
-          <AppBadge status={connected ? "connected" : "disconnected"} />
-        )}
+        {connected !== undefined && <ConnectionStatusPopover connected={connected} />}
         <button
           type="button"
           className="ds-topbar-icon-btn"

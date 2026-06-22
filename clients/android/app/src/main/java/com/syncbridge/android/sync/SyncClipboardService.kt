@@ -30,7 +30,8 @@ class SyncClipboardService : Service() {
 
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
         if (suppressEcho) return@OnPrimaryClipChangedListener
-        val (content, type) = repo.readPrimaryClip() ?: return@OnPrimaryClipChangedListener
+        val clipData = repo.readPrimaryClip() ?: return@OnPrimaryClipChangedListener
+        val (content, type) = clipData
         val hash = content.hashCode().toString()
         if (hash == lastHash) return@OnPrimaryClipChangedListener
         lastHash = hash
@@ -53,16 +54,23 @@ class SyncClipboardService : Service() {
         cm.addPrimaryClipChangedListener(clipListener)
 
         if (app.api.isAuthenticated) {
-            ws = WSClient(app.api) { entry -> handleRemoteClipboard(entry) }.also { it.connect() }
+            app.networkManager.start()
+            ws = WSClient(app.api, app.networkManager) { entry -> handleRemoteClipboard(entry) }.also { it.connect() }
         }
     }
 
     private fun handleRemoteClipboard(entry: ClipboardEntry) {
         suppressEcho = true
-        repo.applyRemoteClip(entry.content)
+        repo.applyRemoteClip(entry)
         lastHash = entry.content.hashCode().toString()
         SyncEventBus.emitClipboard(entry)
-        showClipboardNotification(entry.content)
+        val preview = if (entry.contentType.startsWith("image/")) {
+            "Image received"
+        } else {
+            val content = entry.content
+            if (content.length > 80) content.take(80) + "…" else content
+        }
+        showClipboardNotification(preview)
         android.os.Handler(mainLooper).postDelayed({ suppressEcho = false }, 500)
     }
 
@@ -70,6 +78,7 @@ class SyncClipboardService : Service() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.removePrimaryClipChangedListener(clipListener)
         ws?.disconnect()
+        (application as SyncBridgeApp).networkManager.stop()
         super.onDestroy()
     }
 

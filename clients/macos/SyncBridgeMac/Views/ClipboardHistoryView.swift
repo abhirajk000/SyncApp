@@ -146,8 +146,9 @@ struct ClipboardEntryRow: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DS.Space.lg)
+        .padding(.vertical, DS.Space.md)
+        .glassCard(cornerRadius: DS.Radius.md)
         .contentShape(Rectangle())
         .onTapGesture { appState.copyToClipboard(entry) }
     }

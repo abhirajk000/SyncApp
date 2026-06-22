@@ -52,6 +52,8 @@
   --color-bg: #f4f7fb;
   --color-bg-elevated: #ffffff;
   --color-bg-subtle: #eef2f7;
+  --color-surface: rgba(255, 255, 255, 0.72);
+  --color-surface-elevated: rgba(255, 255, 255, 0.85);
   --color-border: rgba(15, 23, 42, 0.08);
   --color-border-strong: rgba(15, 23, 42, 0.14);
   --color-text: #0c1222;
@@ -94,6 +96,8 @@
   --color-bg: #080d18;
   --color-bg-elevated: #111827;
   --color-bg-subtle: #1a2332;
+  --color-surface: rgba(17, 24, 39, 0.72);
+  --color-surface-elevated: rgba(17, 24, 39, 0.88);
   --color-border: rgba(248, 250, 252, 0.08);
   --color-border-strong: rgba(248, 250, 252, 0.14);
   --color-text: #f1f5f9;

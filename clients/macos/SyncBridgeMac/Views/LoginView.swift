@@ -12,13 +12,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [DS.Color.primary.opacity(0.08), DS.Color.secondary.opacity(0.05), DS.Color.bg],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
+            LiquidBackground()
             VStack(spacing: DS.Space.xl) {
                 VStack(spacing: DS.Space.sm) {
                     Image(nsImage: NSImage(named: "AppLogo") ?? NSImage())

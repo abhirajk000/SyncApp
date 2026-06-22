@@ -16,6 +16,7 @@ import {
   AppTopBar,
 } from "./components";
 import { ThemeProvider } from "./design/ThemeProvider";
+import { NetworkProvider, networkService } from "./design/NetworkProvider";
 import { ToastProvider, useToast } from "./design/ToastProvider";
 import { PinnedPage } from "./pages/ClipboardPage";
 import { FilesPage } from "./pages/FilesPage";
@@ -23,6 +24,7 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { SendPage } from "./pages/SendPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { NetworkPage } from "./pages/NetworkPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
 import { Check } from "lucide-react";
@@ -47,6 +49,7 @@ function AppShell() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
   const [nav, setNav] = useState<NavId>("clipboard");
+  const [settingsView, setSettingsView] = useState<"main" | "network">("main");
   const [liveConnected, setLiveConnected] = useState(false);
   const showConnected = useStableConnection(liveConnected);
   const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
@@ -87,21 +90,41 @@ function AppShell() {
   useEffect(() => {
     if (!authed) {
       ws.disconnect();
+      networkService.stop();
       setLiveConnected(false);
       return;
     }
 
-    ws.onConnectionChange = setLiveConnected;
+    networkService.start();
+    networkService.setWsConnected(false);
+
+    ws.onConnectionChange = (connected) => {
+      setLiveConnected(connected);
+      networkService.setWsConnected(connected);
+    };
     ws.onMessage = (type, payload) => {
+      if (type === "signal.peer") {
+        if (networkService.handleSignalPeer(payload)) {
+          toastRef.current("Nearby device available", "success");
+        }
+      }
       if (type === "clipboard.new") {
         const entry = payloadToClipboardEntry(payload);
         if (entry) {
+          const peerIds = new Set(networkService.getSnapshot().peers.map((p) => p.device_id));
+          entry.transfer_route = peerIds.has(entry.source_device_id) ? "direct_lan" : "relay";
           window.dispatchEvent(new CustomEvent("syncbridge:clipboard-new", { detail: entry }));
+          networkService.markSync();
           toastRef.current("Clipboard updated", "success");
         }
       }
       if (type === "clipboard.pin") {
         window.dispatchEvent(new CustomEvent("syncbridge:clipboard-pin", { detail: payload }));
+        networkService.markSync();
+      }
+      if (type === "file.ready" || type === "file.progress") {
+        networkService.markSync();
+        window.dispatchEvent(new CustomEvent("syncbridge:files-updated"));
       }
     };
     ws.connect();
@@ -114,6 +137,7 @@ function AppShell() {
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       ws.disconnect();
+      networkService.stop();
       setLiveConnected(false);
     };
   }, [authed]);
@@ -163,7 +187,15 @@ function AppShell() {
       case "files":
         return <FilesPage />;
       case "settings":
-        return <SettingsPage onLogout={logout} />;
+        if (settingsView === "network") {
+          return <NetworkPage onBack={() => setSettingsView("main")} />;
+        }
+        return (
+          <SettingsPage
+            onLogout={logout}
+            onOpenNetwork={() => setSettingsView("network")}
+          />
+        );
     }
   }
 
@@ -173,7 +205,13 @@ function AppShell() {
         <AppTopBar connected={showConnected} />
         <main className="ds-content">{renderPage()}</main>
       </div>
-      <AppBottomNav active={nav} onNavigate={setNav} />
+      <AppBottomNav
+        active={nav}
+        onNavigate={(id) => {
+          if (id !== "settings") setSettingsView("main");
+          setNav(id);
+        }}
+      />
       <AppModal
         open={!!latestPopup}
         title="Latest Clipboard"
@@ -216,11 +254,13 @@ function AppShell() {
 export default function App() {
   return (
     <ThemeProvider>
-      <ToastProvider>
-        <div className="ds-app">
-          <AppShell />
-        </div>
-      </ToastProvider>
+      <NetworkProvider>
+        <ToastProvider>
+          <div className="ds-app">
+            <AppShell />
+          </div>
+        </ToastProvider>
+      </NetworkProvider>
     </ThemeProvider>
   );
 }

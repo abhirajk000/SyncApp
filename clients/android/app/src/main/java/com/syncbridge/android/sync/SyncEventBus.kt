@@ -15,6 +15,20 @@ object SyncEventBus {
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
 
+    private val _nearbyAlert = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val nearbyAlert: SharedFlow<String> = _nearbyAlert.asSharedFlow()
+
+    private val _filesUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    val filesUpdated: SharedFlow<Unit> = _filesUpdated.asSharedFlow()
+
+    fun emitNearbyAlert(deviceId: String) {
+        _nearbyAlert.tryEmit(deviceId)
+    }
+
+    fun emitFilesUpdated() {
+        _filesUpdated.tryEmit(Unit)
+    }
+
     fun emitClipboard(entry: ClipboardEntry) {
         _clipboardNew.tryEmit(entry)
     }

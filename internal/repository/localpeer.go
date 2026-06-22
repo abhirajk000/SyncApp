@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -83,6 +84,24 @@ func (r *LocalPeerRepository) FindByUserID(ctx context.Context, userID uuid.UUID
 		peers = append(peers, lp)
 	}
 	return peers, mapError(rows.Err())
+}
+
+// FindByDeviceID returns the current local-peer row for deviceID, if any.
+func (r *LocalPeerRepository) FindByDeviceID(ctx context.Context, deviceID uuid.UUID) (*LocalPeer, error) {
+	const q = `
+		SELECT id, user_id, device_id, addrs, port, updated_at, expires_at
+		FROM   local_peers
+		WHERE  device_id = $1
+		  AND  expires_at > now()`
+
+	lp, err := r.scanRow(r.pool.QueryRow(ctx, q, deviceID))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return lp, nil
 }
 
 // DeleteByDeviceID removes the local-peer record for a specific device.

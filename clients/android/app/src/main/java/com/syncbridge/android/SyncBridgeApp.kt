@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.FileUploader
+import com.syncbridge.android.network.NetworkManager
 
 class SyncBridgeApp : Application() {
 
@@ -13,6 +14,9 @@ class SyncBridgeApp : Application() {
     lateinit var fileUploader: FileUploader
         private set
 
+    lateinit var networkManager: NetworkManager
+        private set
+
     var pendingShareText: String? = null
     var pendingShareUris: List<Uri>? = null
 
@@ -20,7 +24,8 @@ class SyncBridgeApp : Application() {
         super.onCreate()
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         api = ApiClient(prefs)
-        fileUploader = FileUploader(this, api)
+        networkManager = NetworkManager(this, api, prefs)
+        fileUploader = FileUploader(this, api, networkManager)
     }
 
     companion object {

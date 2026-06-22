@@ -28,6 +28,8 @@ struct FileGridItemView: View {
                 .lineLimit(2)
                 .frame(maxWidth: .infinity)
 
+            TransferBadgeView(transferMode: file.transferMode)
+
             Button("Pin") {
                 Task { await appState.pinFile(file, pinned: true) }
             }

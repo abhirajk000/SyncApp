@@ -2,14 +2,11 @@ package com.syncbridge.android.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,33 +24,55 @@ fun AppCard(
     hero: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = RoundedCornerShape(SyncTokens.RadiusLg)
     if (hero) {
-        Box(
+        Column(
             modifier = modifier
                 .fillMaxWidth()
-                .shadow(12.dp, RoundedCornerShape(SyncTokens.RadiusLg), ambientColor = SyncTokens.Teal.copy(0.15f))
-                .clip(RoundedCornerShape(SyncTokens.RadiusLg))
+                .shadow(12.dp, shape, ambientColor = SyncTokens.Teal.copy(0.15f))
+                .clip(shape)
                 .background(
                     Brush.linearGradient(
                         listOf(
-                            SyncTokens.Teal.copy(alpha = 0.12f),
-                            SyncTokens.Indigo.copy(alpha = 0.06f),
+                            SyncTokens.Teal.copy(alpha = 0.14f),
+                            SyncTokens.Indigo.copy(alpha = 0.08f),
                         ),
                     ),
                 )
-                .border(1.dp, SyncTokens.Teal.copy(0.2f), RoundedCornerShape(SyncTokens.RadiusLg))
+                .border(1.dp, SyncTokens.Teal.copy(0.25f), shape)
                 .padding(SyncTokens.Space6),
+            content = content,
+        )
+    } else {
+        GlassSurface(modifier = modifier.fillMaxWidth(), shape = shape) {
+            Column(Modifier.padding(SyncTokens.Space6), content = content)
+        }
+    }
+}
+
+@Composable
+fun GlassListRow(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(SyncTokens.RadiusMd)
+    val rowModifier = modifier.fillMaxWidth()
+    if (onClick != null) {
+        androidx.compose.material3.Surface(
+            onClick = onClick,
+            shape = shape,
+            color = GlassColors.surface(),
+            border = androidx.compose.foundation.BorderStroke(1.dp, GlassColors.border()),
+            shadowElevation = 2.dp,
+            modifier = rowModifier,
         ) {
-            Column(content = content)
+            Column(Modifier.padding(SyncTokens.Space4), content = content)
         }
     } else {
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(SyncTokens.RadiusLg),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            content = { Column(Modifier.padding(SyncTokens.Space6), content = content) },
-        )
+        GlassSurface(modifier = rowModifier, shape = shape, elevation = 2.dp) {
+            Column(Modifier.padding(SyncTokens.Space4), content = content)
+        }
     }
 }
 

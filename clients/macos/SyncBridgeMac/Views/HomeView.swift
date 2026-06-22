@@ -1,4 +1,4 @@
-// HomeView.swift — Recent clipboard and files (matches web HomePage).
+// HomeView.swift — Latest text, image, and file (product dashboard priority).
 
 import SwiftUI
 
@@ -7,34 +7,37 @@ struct HomeView: View {
     @EnvironmentObject var appState: AppState
     var onSeeAllFiles: () -> Void
 
-    private var recentClipboard: [ClipboardEntryResponse] {
-        appState.clipboardHistory.filter { !$0.pinned }.prefix(6).map { $0 }
+    private var latestText: ClipboardEntryResponse? {
+        appState.clipboardHistory.first { !$0.pinned && !$0.contentType.hasPrefix("image/") }
     }
 
-    private var recentFiles: [FileResponse] {
-        appState.files.filter { !$0.isPinned && $0.status == "ready" }.prefix(5).map { $0 }
+    private var latestImage: ClipboardEntryResponse? {
+        appState.clipboardHistory.first { !$0.pinned && $0.contentType.hasPrefix("image/") }
+    }
+
+    private var latestFile: FileResponse? {
+        appState.files.first { !$0.isPinned && $0.status == "ready" }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.lg) {
-                sectionTitle("Recent clipboard")
-                if recentClipboard.isEmpty {
-                    AppCard {
-                        Text("No clipboard items yet.")
-                            .font(DS.Font.body())
-                            .foregroundStyle(.secondary)
-                    }
+                sectionTitle("Latest text")
+                if let entry = latestText {
+                    ClipboardEntryRow(entry: entry)
                 } else {
-                    VStack(spacing: DS.Space.sm) {
-                        ForEach(recentClipboard) { entry in
-                            ClipboardEntryRow(entry: entry)
-                        }
-                    }
+                    emptyCard("No text yet.")
+                }
+
+                sectionTitle("Latest image")
+                if let entry = latestImage {
+                    ClipboardEntryRow(entry: entry)
+                } else {
+                    emptyCard("No images yet.")
                 }
 
                 HStack {
-                    sectionTitle("Recent files")
+                    sectionTitle("Latest file")
                     Spacer()
                     Button("See all", action: onSeeAllFiles)
                         .font(DS.Font.label())
@@ -42,18 +45,10 @@ struct HomeView: View {
                         .foregroundStyle(DS.Color.primary)
                 }
 
-                if recentFiles.isEmpty {
-                    AppCard {
-                        Text("No files yet.")
-                            .font(DS.Font.body())
-                            .foregroundStyle(.secondary)
-                    }
+                if let file = latestFile {
+                    FileRowView(file: file)
                 } else {
-                    VStack(spacing: DS.Space.sm) {
-                        ForEach(recentFiles) { file in
-                            FileRowView(file: file)
-                        }
-                    }
+                    emptyCard("No files yet.")
                 }
             }
             .padding(DS.Space.md)
@@ -66,5 +61,13 @@ struct HomeView: View {
             .font(DS.Font.label())
             .foregroundStyle(.secondary)
             .tracking(0.8)
+    }
+
+    private func emptyCard(_ message: String) -> some View {
+        AppCard {
+            Text(message)
+                .font(DS.Font.body())
+                .foregroundStyle(.secondary)
+        }
     }
 }

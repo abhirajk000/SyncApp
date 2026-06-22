@@ -8,13 +8,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [DS.Color.primary.opacity(0.1), DS.Color.bg],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-
+            LiquidBackground()
             VStack(spacing: DS.Space.xl) {
                 Image("AppLogo")
                     .resizable()

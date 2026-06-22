@@ -59,12 +59,15 @@ struct MenuBarView: View {
     // MARK: – Main content (authenticated)
 
     private var mainContent: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            tabBar
-            Divider()
-            tabContent
+        ZStack {
+            LiquidBackground()
+            VStack(spacing: 0) {
+                header
+                Divider().opacity(0.35)
+                tabBar
+                Divider().opacity(0.35)
+                tabContent
+            }
         }
     }
 
@@ -111,28 +114,45 @@ struct MenuBarView: View {
         }
         .padding(.horizontal, DS.Space.lg)
         .padding(.vertical, DS.Space.md)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(DS.Glass.border.opacity(0.35)).frame(height: 1)
+        }
     }
 
     @ViewBuilder
     private var statusBadge: some View {
-        switch appState.syncStatus {
-        case .connected:
-            AppBadge(status: .connected, label: "Synced")
-        case .syncing:
-            AppBadge(status: .syncing)
-        case .connecting:
-            AppBadge(status: .syncing, label: "Connecting")
-        case .disconnected:
-            AppBadge(status: .offline)
-        case .error:
-            AppBadge(status: .disconnected, label: "Error")
+        Menu {
+            Text("Server: \(appState.networkManager.diagnostics != nil ? "Online" : "—")")
+            Text("Peers: \(appState.networkManager.peers.count)")
+            Text("Transfer: \(appState.networkManager.currentTransferMode)")
+            if let ms = appState.networkManager.latencyMs {
+                Text("Latency: \(ms) ms")
+            }
+            if let sync = appState.networkManager.lastSyncAt {
+                Text("Last sync: \(sync)")
+            }
+        } label: {
+            switch appState.syncStatus {
+            case .connected:
+                AppBadge(status: .connected, label: "Connected")
+            case .syncing:
+                AppBadge(status: .syncing)
+            case .connecting:
+                AppBadge(status: .syncing, label: "Connecting")
+            case .disconnected:
+                AppBadge(status: .offline)
+            case .error:
+                AppBadge(status: .disconnected, label: "Error")
+            }
         }
+        .menuStyle(.borderlessButton)
     }
 
     // MARK: – Tab bar
 
     private var tabBar: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: DS.Space.sm) {
             ForEach(Tab.allCases, id: \.self) { tab in
                 Button {
                     selectedTab = tab
@@ -143,15 +163,24 @@ struct MenuBarView: View {
                             .font(DS.Font.label())
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, DS.Space.sm)
-                    .foregroundStyle(selectedTab == tab ? DS.Color.primary : .secondary)
-                    .background(selectedTab == tab
-                        ? DS.Color.primary.opacity(0.1)
-                        : Color.clear)
+                    .frame(height: 52)
+                    .foregroundStyle(selectedTab == tab ? DS.Color.activeGreen : .secondary)
+                    .background {
+                        if selectedTab == tab {
+                            Capsule()
+                                .fill(DS.Color.activeGreenBg.opacity(0.92))
+                                .overlay(Capsule().stroke(DS.Color.activeGreen.opacity(0.35)))
+                        } else {
+                            Capsule().fill(Color.clear)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, DS.Space.sm)
+        .padding(.vertical, DS.Space.sm)
+        .background(.ultraThinMaterial)
     }
 
     // MARK: – Tab content
@@ -279,6 +308,7 @@ struct FileRowView: View {
                 Text(formattedSize(file.totalSize))
                     .font(.caption)
                     .foregroundColor(.secondary)
+                TransferBadgeView(transferMode: file.transferMode)
             }
 
             Spacer()
@@ -300,9 +330,9 @@ struct FileRowView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .padding(.horizontal, DS.Space.lg)
+        .padding(.vertical, DS.Space.md)
+        .glassCard(cornerRadius: DS.Radius.md)
     }
 }
 

@@ -7,6 +7,7 @@ import { ItemDeleteButton } from "../components/ItemDeleteButton";
 import { IconFolder } from "../components/Icons";
 import { formatBytes, relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
+import { TransferBadge } from "../components/TransferBadge";
 
 export function FilesPage() {
   const { toast } = useToast();
@@ -98,6 +99,7 @@ export function FilesPage() {
                   <span className="ds-list-meta">
                     {formatBytes(file.total_size)} · {file.status} · {relativeTime(file.created_at)}
                   </span>
+                  <TransferBadge transferMode={file.transfer_mode} className="ds-transfer-badge--inline" />
                 </div>
                 <div className="ds-list-actions">
                   <FileRowActions file={file} />

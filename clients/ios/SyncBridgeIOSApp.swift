@@ -23,8 +23,7 @@ struct SyncBridgeIOSApp: App {
 
                 if let popup = appState.latestClipboardPopup {
                     LatestClipboardView(
-                        content: popup.content,
-                        createdAt: popup.createdAt,
+                        entry: popup,
                         onDismiss: { appState.latestClipboardPopup = nil }
                     )
                 }
@@ -48,7 +47,7 @@ struct SyncBridgeIOSApp: App {
             .onAppear {
                 wsClient.onClipboardNew = { entry in
                     appState.latestClipboardPopup = entry
-                    UIPasteboard.general.string = entry.content
+                    appState.applyEntryToPasteboard(entry)
                 }
                 if appState.isAuthenticated {
                     Task { await appState.loadLatestClipboard() }

@@ -47,6 +47,7 @@ final class AppState: ObservableObject {
     let wsClient: WSClient
     let clipboardMonitor: ClipboardMonitor
     let fileTransferService: FileTransferService
+    let networkManager: NetworkManager
 
     // ── Error banner ──────────────────────────────────────────────────────────
     @Published var errorMessage: String? = nil
@@ -58,11 +59,13 @@ final class AppState: ObservableObject {
 
     init() {
         let authService = AuthService(api: .shared)
+        let networkManager = NetworkManager(auth: authService)
         let wsClient = WSClient()
         let clipboardMonitor = ClipboardMonitor(authService: authService)
-        let fileTransferService = FileTransferService(api: .shared, authService: authService)
+        let fileTransferService = FileTransferService(api: .shared, authService: authService, networkManager: networkManager)
 
         self.authService = authService
+        self.networkManager = networkManager
         self.wsClient = wsClient
         self.clipboardMonitor = clipboardMonitor
         self.fileTransferService = fileTransferService
@@ -108,6 +111,7 @@ final class AppState: ObservableObject {
 
     func startServices() {
         syncStatus = .connecting
+        networkManager.start()
         wsClient.connect()
         if syncEnabled {
             clipboardMonitor.start()
@@ -117,6 +121,7 @@ final class AppState: ObservableObject {
 
     func stopServices() {
         wsClient.disconnect()
+        networkManager.stop()
         clipboardMonitor.stop()
         syncStatus = .disconnected
     }
@@ -260,7 +265,17 @@ final class AppState: ObservableObject {
 
     // ── File actions ──────────────────────────────────────────────────────────
 
-    func uploadFile(_ url: URL) {
+    func uploadFiles(_ urls: [URL]) {
+        let isFolder = urls.contains {
+            (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+        let count = urls.count
+        for url in urls {
+            uploadFile(url, fileCount: count, isFolder: isFolder)
+        }
+    }
+
+    func uploadFile(_ url: URL, fileCount: Int = 1, isFolder: Bool = false) {
         let item = TransferItem(
             id: UUID().uuidString,
             name: url.lastPathComponent,
@@ -273,6 +288,8 @@ final class AppState: ObservableObject {
 
         fileTransferService.upload(
             fileURL: url,
+            fileCount: fileCount,
+            isFolder: isFolder,
             onProgress: { [weak self] pct in
                 Task { @MainActor [weak self] in
                     if let idx = self?.activeTransfers.firstIndex(where: { $0.id == transferId }) {
@@ -338,6 +355,7 @@ final class AppState: ObservableObject {
         wsClient.onConnectionChange = { [weak self] connected in
             Task { @MainActor [weak self] in
                 self?.syncStatus = connected ? .connected : .connecting
+                self?.networkManager.wsConnected = connected
             }
         }
         wsClient.onMessage = { [weak self] envelope in
@@ -376,6 +394,7 @@ final class AppState: ObservableObject {
                 NotificationService.notifyClipboardUpdated(preview: content)
             }
             syncStatus = .connected
+            networkManager.markSync()
 
         case "clipboard.pin":
             guard let payload = envelope.payload?.value as? [String: Any],
@@ -396,9 +415,8 @@ final class AppState: ObservableObject {
         case "file.ready":
             guard let payload = envelope.payload?.value as? [String: Any],
                   let fileId = payload["file_id"] as? String else { return }
-            // Refresh files list to show new entry.
+            networkManager.markSync()
             Task { await self.refreshFiles() }
-            // If we're downloading this file, mark it complete.
             if let idx = activeTransfers.firstIndex(where: { $0.id == fileId }) {
                 activeTransfers[idx].status = .ready
             }
@@ -407,6 +425,7 @@ final class AppState: ObservableObject {
             guard let payload = envelope.payload?.value as? [String: Any],
                   let fileId = payload["file_id"] as? String,
                   let pct = payload["progress_percent"] as? Double else { return }
+            networkManager.markSync()
             if let idx = activeTransfers.firstIndex(where: { $0.id == fileId }) {
                 activeTransfers[idx].progress = pct / 100
             }
@@ -421,6 +440,16 @@ final class AppState: ObservableObject {
         case "presence":
             // Device online/offline — refresh device list.
             Task { await self.refreshDevices() }
+
+        case "signal.peer":
+            guard let payload = envelope.payload?.value as? [String: Any],
+                  let deviceId = payload["device_id"] as? String else { return }
+            let addrs = payload["addrs"] as? [String] ?? []
+            let port = payload["port"] as? Int ?? 0
+            if networkManager.handleSignalPeer(deviceId: deviceId, addrs: addrs, port: port),
+               showNotifications {
+                NotificationService.notifyClipboardUpdated(preview: "Nearby device available")
+            }
 
         default:
             break
