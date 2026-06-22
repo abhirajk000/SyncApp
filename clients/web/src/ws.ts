@@ -18,21 +18,36 @@ export class SyncBridgeWS {
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private backoffMs = 1000;
-  private stopped = false;
+  private stopped = true;
+  /** Ignore onclose from sockets replaced by a newer connect() call. */
+  private generation = 0;
 
   onMessage: MessageHandler | null = null;
   onConnectionChange: ConnectionHandler | null = null;
 
   connect(): void {
     this.stopped = false;
+    if (
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING
+    ) {
+      return;
+    }
     this.open();
   }
 
   disconnect(): void {
     this.stopped = true;
+    this.generation += 1;
     this.clearTimers();
-    this.ws?.close();
-    this.ws = null;
+    if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
+      this.ws.close();
+      this.ws = null;
+    }
     this.onConnectionChange?.(false);
   }
 
@@ -47,6 +62,8 @@ export class SyncBridgeWS {
     const token = getAccessToken();
     if (!token || this.stopped) return;
 
+    const gen = ++this.generation;
+
     try {
       this.ws = new WebSocket(this.wsUrl());
     } catch {
@@ -54,13 +71,17 @@ export class SyncBridgeWS {
       return;
     }
 
-    this.ws.onopen = () => {
+    const socket = this.ws;
+
+    socket.onopen = () => {
+      if (gen !== this.generation || this.stopped) return;
       this.backoffMs = 1000;
       this.onConnectionChange?.(true);
       this.startHeartbeat();
     };
 
-    this.ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (gen !== this.generation) return;
       try {
         const frame = JSON.parse(event.data as string) as {
           type?: string;
@@ -75,38 +96,52 @@ export class SyncBridgeWS {
       }
     };
 
-    this.ws.onclose = () => {
+    socket.onclose = () => {
+      if (gen !== this.generation) return;
       this.clearTimers();
+      this.ws = null;
       this.onConnectionChange?.(false);
       this.scheduleReconnect();
     };
 
-    this.ws.onerror = () => {
-      this.ws?.close();
+    socket.onerror = () => {
+      if (gen !== this.generation) return;
+      socket.close();
     };
   }
 
   private startHeartbeat(): void {
+    this.clearHeartbeat();
+    // Stay ahead of server idle timeout (54s) and proxies that drop quiet sockets.
     this.heartbeat = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: "ping" }));
       }
-    }, 54_000);
+    }, 30_000);
   }
 
   private scheduleReconnect(): void {
     if (this.stopped) return;
+    if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.stopped) return;
       this.backoffMs = Math.min(this.backoffMs * 2, 60_000);
       this.open();
     }, this.backoffMs);
   }
 
-  private clearTimers(): void {
+  private clearHeartbeat(): void {
     if (this.heartbeat) clearInterval(this.heartbeat);
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.heartbeat = null;
-    this.reconnectTimer = null;
+  }
+
+  private clearTimers(): void {
+    this.clearHeartbeat();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   }
 }
 

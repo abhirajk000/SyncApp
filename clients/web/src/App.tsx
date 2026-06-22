@@ -42,11 +42,25 @@ const PAGE_TITLES: Record<NavId, string> = {
   settings: "Settings",
 };
 
+function useStableConnection(live: boolean): boolean {
+  const [stable, setStable] = useState(live);
+  useEffect(() => {
+    if (live) {
+      setStable(true);
+      return;
+    }
+    const timer = setTimeout(() => setStable(false), 2500);
+    return () => clearTimeout(timer);
+  }, [live]);
+  return stable;
+}
+
 function AppShell() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
   const [nav, setNav] = useState<NavId>("dashboard");
   const [liveConnected, setLiveConnected] = useState(false);
+  const showConnected = useStableConnection(liveConnected);
   const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
   const [stats, setStats] = useState({ clipboard: 0, pinned: 0, files: 0 });
   const [copied, setCopied] = useState(false);
@@ -77,7 +91,6 @@ function AppShell() {
     } catch {
       /* no clipboard */
     }
-    ws.connect();
     await refreshStats();
   }, [refreshStats]);
 
@@ -98,18 +111,23 @@ function AppShell() {
     };
   }, [onAuthed]);
 
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
   useEffect(() => {
     if (!authed) {
       ws.disconnect();
+      setLiveConnected(false);
       return;
     }
+
     ws.onConnectionChange = setLiveConnected;
     ws.onMessage = (type, payload) => {
       if (type === "clipboard.new") {
         const entry = payloadToClipboardEntry(payload);
         if (entry) {
           window.dispatchEvent(new CustomEvent("syncbridge:clipboard-new", { detail: entry }));
-          toast("Clipboard updated", "success");
+          toastRef.current("Clipboard updated", "success");
         }
       }
       if (type === "clipboard.pin") {
@@ -117,9 +135,18 @@ function AppShell() {
       }
     };
     ws.connect();
-    refreshStats();
-    return () => ws.disconnect();
-  }, [authed, refreshStats, toast]);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ws.connect();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      ws.disconnect();
+      setLiveConnected(false);
+    };
+  }, [authed]);
 
   function logout() {
     ws.disconnect();
@@ -162,7 +189,7 @@ function AppShell() {
             clipboardCount={stats.clipboard}
             pinnedCount={stats.pinned}
             fileCount={stats.files}
-            connected={liveConnected}
+            connected={showConnected}
           />
         );
       case "clipboard":
@@ -187,7 +214,7 @@ function AppShell() {
         <AppHeader
           title={PAGE_TITLES[nav]}
           subtitle="SyncBridge web dashboard"
-          connected={liveConnected}
+          connected={showConnected}
         />
         <main className="ds-content">{renderPage()}</main>
       </div>
