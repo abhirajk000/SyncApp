@@ -1,7 +1,12 @@
 import { AppButton, AppCard, AppIcon, AppSection } from "../components";
+import { IconLogout } from "../components/Icons";
 import { useTheme } from "../design/ThemeProvider";
 
-export function SettingsPage() {
+interface Props {
+  onLogout: () => void;
+}
+
+export function SettingsPage({ onLogout }: Props) {
   const { theme, setTheme } = useTheme();
 
   return (
@@ -9,7 +14,7 @@ export function SettingsPage() {
       <AppSection title="Appearance">
         <AppCard>
           <p className="ds-subtitle" style={{ marginBottom: "var(--space-3)" }}>Theme</p>
-          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
             {(["system", "light", "dark"] as const).map((t) => (
               <AppButton
                 key={t}
@@ -32,6 +37,14 @@ export function SettingsPage() {
           <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
             Instant clipboard sync across your devices.
           </p>
+        </AppCard>
+      </AppSection>
+      <AppSection title="Account">
+        <AppCard>
+          <AppButton variant="danger" onClick={onLogout}>
+            <IconLogout size={18} />
+            Log out
+          </AppButton>
         </AppCard>
       </AppSection>
     </div>

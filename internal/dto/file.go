@@ -9,6 +9,7 @@ var SupportedFileMIMETypes = map[string]bool{
 	// Images / Screenshots
 	"image/jpeg": true, "image/png": true, "image/gif": true,
 	"image/webp": true, "image/bmp": true, "image/tiff": true,
+	"image/heic": true, "image/heif": true,
 	// Videos
 	"video/mp4": true, "video/webm": true, "video/quicktime": true,
 	"video/x-msvideo": true, "video/x-matroska": true,
@@ -25,6 +26,8 @@ var SupportedFileMIMETypes = map[string]bool{
 	"application/zip": true, "application/x-zip-compressed": true,
 	"application/gzip": true, "application/x-tar": true,
 	"application/x-7z-compressed": true,
+	// Fallback when the browser cannot detect MIME type
+	"application/octet-stream": true,
 }
 
 // compressibleMIMETypes are candidates for gzip compression.

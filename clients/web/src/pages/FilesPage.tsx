@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileEntry, fetchFiles, getAccessToken, pinFile } from "../api";
 import { AppButton, AppEmptyState, AppSection, AppSkeleton } from "../components";
+import { FileGridCard } from "../components/FileGridCard";
+import { FileRowActions } from "../components/FileRowActions";
 import { IconFolder } from "../components/Icons";
-import { copyFileToClipboard, isImageMime } from "../lib/clipboard";
 import { formatBytes, relativeTime } from "../lib/format";
-import { useToast } from "../design/ToastProvider";
 
 export function FilesPage() {
-  const { toast } = useToast();
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +28,11 @@ export function FilesPage() {
 
   useEffect(() => {
     load();
+    function onFilesUpdated() {
+      void load();
+    }
+    window.addEventListener("syncbridge:files-updated", onFilesUpdated);
+    return () => window.removeEventListener("syncbridge:files-updated", onFilesUpdated);
   }, [load]);
 
   async function togglePin(file: FileEntry) {
@@ -37,15 +41,6 @@ export function FilesPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pin failed");
-    }
-  }
-
-  async function copyImage(file: FileEntry) {
-    try {
-      await copyFileToClipboard(file.id, file.mime_type);
-      toast("Image copied", "success");
-    } catch {
-      toast("Could not copy image", "danger");
     }
   }
 
@@ -70,8 +65,16 @@ export function FilesPage() {
           title={`No ${tab} files`}
           description="Transfer files from a connected device to see them here."
         />
+      ) : tab === "temporary" ? (
+        <AppSection title="Temporary files">
+          <div className="ds-file-grid">
+            {filtered.map((file) => (
+              <FileGridCard key={file.id} file={file} onPin={togglePin} />
+            ))}
+          </div>
+        </AppSection>
       ) : (
-        <AppSection title={tab === "pinned" ? "Pinned files" : "Temporary files"}>
+        <AppSection title="Pinned files">
           <ul className="ds-list">
             {filtered.map((file) => (
               <li key={file.id} className="ds-list-item">
@@ -82,11 +85,7 @@ export function FilesPage() {
                   </span>
                 </div>
                 <div className="ds-list-actions">
-                  {isImageMime(file.mime_type) && file.status === "ready" && (
-                    <AppButton variant="ghost" size="sm" onClick={() => void copyImage(file)}>
-                      Copy Image
-                    </AppButton>
-                  )}
+                  <FileRowActions file={file} />
                   <AppButton variant="ghost" size="sm" onClick={() => togglePin(file)}>
                     {file.is_pinned ? "Unpin" : "Pin"}
                   </AppButton>

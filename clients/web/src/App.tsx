@@ -2,45 +2,33 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ClipboardEntry,
   clearSession,
-  fetchClipboardHistory,
   fetchCurrentClipboard,
-  fetchFiles,
   isAuthenticated,
   restoreSession,
 } from "./api";
 import {
   AppButton,
-  AppHeader,
+  AppBottomNav,
   AppLayout,
   AppLoader,
   AppModal,
-  AppSidebar,
   type NavId,
+  AppTopBar,
 } from "./components";
 import { ThemeProvider } from "./design/ThemeProvider";
 import { ToastProvider, useToast } from "./design/ToastProvider";
-import { ClipboardPage } from "./pages/ClipboardPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { DevicesPage } from "./pages/DevicesPage";
+import { PinnedPage } from "./pages/ClipboardPage";
 import { FilesPage } from "./pages/FilesPage";
-import { ImagesPage } from "./pages/ImagesPage";
+import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
+import { SendPage } from "./pages/SendPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
+import { Check } from "lucide-react";
 import { relativeTime } from "./lib/format";
 
 const ws = new SyncBridgeWS();
-
-const PAGE_TITLES: Record<NavId, string> = {
-  dashboard: "Dashboard",
-  clipboard: "Clipboard",
-  pinned: "Pinned",
-  files: "Files",
-  images: "Images",
-  devices: "Devices",
-  settings: "Settings",
-};
 
 function useStableConnection(live: boolean): boolean {
   const [stable, setStable] = useState(live);
@@ -58,30 +46,13 @@ function useStableConnection(live: boolean): boolean {
 function AppShell() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
-  const [nav, setNav] = useState<NavId>("dashboard");
+  const [nav, setNav] = useState<NavId>("clipboard");
   const [liveConnected, setLiveConnected] = useState(false);
   const showConnected = useStableConnection(liveConnected);
   const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
-  const [stats, setStats] = useState({ clipboard: 0, pinned: 0, files: 0 });
   const [copied, setCopied] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
-
-  const refreshStats = useCallback(async () => {
-    try {
-      const [clip, fileData] = await Promise.all([
-        fetchClipboardHistory(),
-        fetchFiles(),
-      ]);
-      setStats({
-        clipboard: clip.entries.length,
-        pinned: clip.entries.filter((e) => e.pinned).length,
-        files: fileData.files.length,
-      });
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   const onAuthed = useCallback(async () => {
     setAuthed(true);
@@ -91,8 +62,7 @@ function AppShell() {
     } catch {
       /* no clipboard */
     }
-    await refreshStats();
-  }, [refreshStats]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +123,7 @@ function AppShell() {
     clearSession();
     setAuthed(false);
     setLatestPopup(null);
+    setNav("clipboard");
   }
 
   async function copyLatest() {
@@ -183,41 +154,26 @@ function AppShell() {
 
   function renderPage() {
     switch (nav) {
-      case "dashboard":
-        return (
-          <DashboardPage
-            clipboardCount={stats.clipboard}
-            pinnedCount={stats.pinned}
-            fileCount={stats.files}
-            connected={showConnected}
-          />
-        );
       case "clipboard":
-        return <ClipboardPage />;
+        return <HomePage onNavigate={setNav} />;
       case "pinned":
-        return <ClipboardPage pinnedOnly />;
+        return <PinnedPage />;
+      case "send":
+        return <SendPage />;
       case "files":
         return <FilesPage />;
-      case "images":
-        return <ImagesPage />;
-      case "devices":
-        return <DevicesPage />;
       case "settings":
-        return <SettingsPage />;
+        return <SettingsPage onLogout={logout} />;
     }
   }
 
   return (
     <AppLayout>
-      <AppSidebar active={nav} onNavigate={setNav} onLogout={logout} />
       <div className="ds-main">
-        <AppHeader
-          title={PAGE_TITLES[nav]}
-          subtitle="SyncBridge web dashboard"
-          connected={showConnected}
-        />
+        <AppTopBar connected={showConnected} />
         <main className="ds-content">{renderPage()}</main>
       </div>
+      <AppBottomNav active={nav} onNavigate={setNav} />
       <AppModal
         open={!!latestPopup}
         title="Latest Clipboard"
@@ -245,8 +201,9 @@ function AppShell() {
               {isImageContentType(latestPopup.content_type) ? "Copy Image" : "Copy"}
             </AppButton>
             {copied && (
-              <p style={{ textAlign: "center", color: "var(--color-success)", marginTop: "var(--space-3)" }}>
-                ✓ Copied
+              <p className="ds-copied-msg">
+                <Check size={16} strokeWidth={2.5} />
+                Copied
               </p>
             )}
           </>

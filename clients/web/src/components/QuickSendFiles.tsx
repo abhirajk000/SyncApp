@@ -69,6 +69,7 @@ export function QuickSendFiles() {
           toast(`${failed} file${failed > 1 ? "s" : ""} failed to upload`, "danger");
         }
         if (succeeded > 0) {
+          window.dispatchEvent(new CustomEvent("syncbridge:files-updated"));
           setTimeout(() => {
             setUploads((prev) => prev.filter((u) => u.progress.status !== "success"));
           }, 3000);

@@ -1,7 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { syncClipboard } from "../api";
-import { blobToBase64, fileToBase64 } from "../lib/clipboard";
-import { mimeTypeForFile } from "../lib/upload";
+import { uploadFiles } from "../lib/upload";
 import { AppButton } from "./AppButton";
 import { AppCard } from "./AppCard";
 import { IconImage } from "./Icons";
@@ -16,7 +14,7 @@ export function QuickSendImage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadFile = useCallback((file: File) => {
-    if (!file.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/") && !file.name.match(/\.(heic|heif)$/i)) {
       setError("Only image files are supported here");
       return;
     }
@@ -29,11 +27,13 @@ export function QuickSendImage() {
     setSending(true);
     setError(null);
     try {
-      const mime = mimeTypeForFile(file);
-      const base64 = await fileToBase64(file);
-      const entry = await syncClipboard(base64, mime);
-      window.dispatchEvent(new CustomEvent("syncbridge:clipboard-new", { detail: entry }));
-      toast("Image sent to clipboard", "success");
+      const { failed, results } = await uploadFiles([file], () => {});
+      const result = results[0];
+      if (failed > 0 || result?.status === "error") {
+        throw new Error(result?.error ?? "Upload failed");
+      }
+      window.dispatchEvent(new CustomEvent("syncbridge:files-updated"));
+      toast("Image uploaded", "success");
       setPendingFile(null);
       if (preview) URL.revokeObjectURL(preview);
       setPreview(null);
@@ -77,10 +77,9 @@ export function QuickSendImage() {
         const type = item.types.find((t) => t.startsWith("image/"));
         if (!type) continue;
         const blob = await item.getType(type);
-        const base64 = await blobToBase64(blob);
-        const entry = await syncClipboard(base64, type);
-        window.dispatchEvent(new CustomEvent("syncbridge:clipboard-new", { detail: entry }));
-        toast("Image sent to clipboard", "success");
+        const file = new File([blob], `paste-${Date.now()}.png`, { type: blob.type || "image/png" });
+        loadFile(file);
+        await sendImage(file);
         return;
       }
       setError("No image found on your clipboard");
@@ -118,12 +117,12 @@ export function QuickSendImage() {
         </AppButton>
         {pendingFile && (
           <AppButton size="sm" onClick={() => void sendImage(pendingFile)} disabled={sending}>
-            {sending ? "Sending…" : "Resend"}
+            {sending ? "Uploading…" : "Resend"}
           </AppButton>
         )}
       </div>
 
-      <input ref={inputRef} type="file" accept="image/*" hidden onChange={(e) => void onPick(e)} />
+      <input ref={inputRef} type="file" accept="image/*,.heic,.heif" hidden onChange={(e) => void onPick(e)} />
     </AppCard>
   );
 }

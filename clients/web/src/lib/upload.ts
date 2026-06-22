@@ -25,6 +25,7 @@ export function mimeTypeForFile(file: File): string {
     gif: "image/gif",
     webp: "image/webp",
     heic: "image/heic",
+    heif: "image/heif",
     mp4: "video/mp4",
     mov: "video/quicktime",
     pdf: "application/pdf",

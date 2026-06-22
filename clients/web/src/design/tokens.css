@@ -37,7 +37,17 @@
   --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
   --shadow-lg: 0 16px 48px rgba(15, 23, 42, 0.12);
   --shadow-glow: 0 0 0 1px rgba(13, 148, 136, 0.08), 0 12px 40px rgba(13, 148, 136, 0.15);
-  --blur-glass: 20px;
+  --shadow-liquid:
+    0 4px 24px rgba(15, 23, 42, 0.06),
+    0 1px 3px rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --shadow-float:
+    0 24px 64px -16px rgba(15, 23, 42, 0.18),
+    0 8px 24px -8px rgba(79, 70, 229, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04);
+  --blur-glass: 24px;
+  --blur-liquid: 40px;
 
   --color-bg: #f4f7fb;
   --color-bg-elevated: #ffffff;
@@ -68,13 +78,16 @@
     var(--color-bg);
   --gradient-primary: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
   --gradient-hero: linear-gradient(135deg, rgba(13, 148, 136, 0.12) 0%, rgba(79, 70, 229, 0.08) 100%);
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
 
   --sidebar-width: 260px;
   --header-height: 64px;
   --bottom-nav-height: 72px;
+  --float-nav-height: 6.75rem;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-liquid: cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
 [data-theme="dark"] {
@@ -107,13 +120,22 @@
     var(--color-bg);
   --gradient-primary: linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%);
   --gradient-hero: linear-gradient(135deg, rgba(45, 212, 191, 0.15) 0%, rgba(129, 140, 248, 0.1) 100%);
-  --glass-bg: rgba(17, 24, 39, 0.8);
-  --glass-border: rgba(248, 250, 252, 0.06);
+  --glass-bg: rgba(17, 24, 39, 0.72);
+  --glass-border: rgba(248, 250, 252, 0.1);
+  --glass-highlight: rgba(248, 250, 252, 0.08);
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45);
   --shadow-glow: 0 0 0 1px rgba(45, 212, 191, 0.12), 0 12px 40px rgba(45, 212, 191, 0.15);
+  --shadow-liquid:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(248, 250, 252, 0.06);
+  --shadow-float:
+    0 24px 64px -16px rgba(0, 0, 0, 0.55),
+    0 8px 24px -8px rgba(129, 140, 248, 0.2),
+    inset 0 1px 0 rgba(248, 250, 252, 0.08);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -34,6 +34,7 @@ var (
 	ErrChunkAlreadyExists = errors.New("chunk already uploaded")
 	ErrNotAllChunks       = errors.New("not all chunks have been uploaded")
 	ErrFileHashMismatch   = errors.New("file integrity check failed: hash mismatch")
+	ErrStorageFailed      = errors.New("file storage failed")
 )
 
 // ── Store / backend interfaces ────────────────────────────────────────────────
@@ -250,7 +251,7 @@ func (s *FileService) UploadChunk(
 	// Persist chunk to storage.
 	key := storage.ChunkKey(f.ObjectKeyPrefix, chunkIndex)
 	if err := s.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), "application/octet-stream"); err != nil {
-		return fmt.Errorf("store chunk: %w", err)
+		return fmt.Errorf("%w: store chunk: %w", ErrStorageFailed, err)
 	}
 
 	// Record in DB.
@@ -581,7 +582,7 @@ func (s *FileService) assemble(ctx context.Context, f *repository.File) (int64, 
 	// ── Store final assembled file ────────────────────────────────────────────
 	finalKey := storage.DataKey(f.ObjectKeyPrefix)
 	if err := s.store.Put(ctx, finalKey, bytes.NewReader(finalData), int64(len(finalData)), f.MimeType); err != nil {
-		return 0, false, nil, fmt.Errorf("store assembled file: %w", err)
+		return 0, false, nil, fmt.Errorf("%w: store assembled file: %w", ErrStorageFailed, err)
 	}
 
 	// ── Delete chunk objects to reclaim storage ────────────────────────────────

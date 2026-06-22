@@ -337,6 +337,8 @@ func mapFileError(err error) *fiber.Error {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, service.ErrStorageQuotaExceeded):
 		return fiber.NewError(fiber.StatusInsufficientStorage, err.Error())
+	case errors.Is(err, service.ErrStorageFailed):
+		return fiber.NewError(fiber.StatusInternalServerError, "file storage failed — check server disk permissions")
 	default:
 		return fiber.NewError(fiber.StatusInternalServerError, "internal error")
 	}
