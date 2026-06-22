@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Outgoing HTTPS/WebSocket connections to the SyncBridge server -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Keychain access for JWT storage -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.syncbridge</string>
+    </array>
+
+    <!-- Launch at login (SMAppService — macOS 13+) -->
+    <key>com.apple.smserver.client</key>
+    <true/>
+
+    <!-- Access to user-selected files (Save/Open panels) -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Write to ~/Downloads for received files -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+
+    <!--
+        Pasteboard read/write in background.
+        On macOS 14+, the OS shows a one-time permission prompt automatically;
+        no additional entitlement is required.
+        If distributing via App Store, also add the Sandbox entitlement.
+    -->
+</dict>
+</plist>

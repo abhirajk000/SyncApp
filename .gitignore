@@ -1,0 +1,39 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Build cache
+vendor/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Data
+data/
+
+# Node / frontend
+node_modules/
+clients/web/dist/
+clients/web/node_modules/
+
+# Docker volumes (local dev only)
+postgres_data/

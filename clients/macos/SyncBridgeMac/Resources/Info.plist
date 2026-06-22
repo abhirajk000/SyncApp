@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>SyncBridge</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>SyncBridge</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.syncbridge.mac</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+
+    <!-- Hide from Dock and App Switcher — menu-bar-only app -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Minimum macOS version -->
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <!-- Privacy strings (macOS 14+ clipboard access prompt) -->
+    <key>NSPasteboardUsageDescription</key>
+    <string>SyncBridge reads and writes the clipboard to sync content across your devices.</string>
+
+    <!-- Network access reason (shown in privacy report) -->
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>SyncBridge connects to your SyncBridge server to sync clipboard and files.</string>
+
+    <!-- App Transport Security: allow HTTP for local/self-hosted servers -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+        <key>NSAllowsArbitraryLoadsInWebContent</key>
+        <false/>
+    </dict>
+</dict>
+</plist>

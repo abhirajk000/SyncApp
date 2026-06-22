@@ -1,0 +1,438 @@
+// MenuBarView.swift
+// The SwiftUI view rendered inside the NSPopover attached to the menu bar icon.
+//
+// Layout:
+//   ┌──────────────────────────────────────┐
+//   │  ● SyncBridge   [status]    [⚙]  [→] │  header
+//   ├──────────────────────────────────────┤
+//   │  📋 Clipboard  /  📁 Files  / 💻 Dev │  tab bar
+//   ├──────────────────────────────────────┤
+//   │                                      │
+//   │           tab content                │  340 × 400
+//   │                                      │
+//   └──────────────────────────────────────┘
+
+import SwiftUI
+
+struct MenuBarView: View {
+
+    @EnvironmentObject var appState: AppState
+    @State private var selectedTab: Tab = .clipboard
+
+    enum Tab: String, CaseIterable {
+        case clipboard = "Clipboard"
+        case files     = "Files"
+        case devices   = "Devices"
+
+        var icon: String {
+            switch self {
+            case .clipboard: return "doc.on.clipboard"
+            case .files:     return "folder"
+            case .devices:   return "desktopcomputer"
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            if case .loggedOut = appState.authState {
+                LoginView()
+                    .frame(width: 340, height: 520)
+            } else {
+                mainContent
+                    .frame(width: 340, height: 520)
+            }
+        }
+    }
+
+    // MARK: – Main content (authenticated)
+
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            tabBar
+            Divider()
+            tabContent
+        }
+    }
+
+    // MARK: – Header
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                .foregroundColor(.accentColor)
+                .font(.title2)
+
+            Text("SyncBridge")
+                .font(.headline)
+
+            Spacer()
+
+            statusIndicator
+
+            Button {
+                Task { await appState.initiatePairing() }
+            } label: {
+                Image(systemName: "qrcode.viewfinder")
+                    .help("Pair a new device")
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                Task { await appState.logout() }
+            } label: {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                    .help("Sign out")
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var statusIndicator: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 7, height: 7)
+            Text(statusText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var statusColor: Color {
+        switch appState.syncStatus {
+        case .connected, .syncing: return .green
+        case .connecting:           return .orange
+        case .disconnected:         return .gray
+        case .error:                return .red
+        }
+    }
+
+    private var statusText: String {
+        switch appState.syncStatus {
+        case .connected:   return "Synced"
+        case .syncing:     return "Syncing"
+        case .connecting:  return "Connecting"
+        case .disconnected: return "Offline"
+        case .error(let msg): return msg
+        }
+    }
+
+    // MARK: – Tab bar
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases, id: \.self) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: tab.icon)
+                        Text(tab.rawValue)
+                            .font(.caption2)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
+                    .background(selectedTab == tab
+                        ? Color.accentColor.opacity(0.1)
+                        : Color.clear)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: – Tab content
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .clipboard:
+            ClipboardHistoryView()
+        case .files:
+            FilesView()
+        case .devices:
+            DevicesView()
+        }
+    }
+}
+
+// ── FilesView ─────────────────────────────────────────────────────────────────
+
+struct FilesView: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Active transfers
+            if !appState.activeTransfers.isEmpty {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(appState.activeTransfers) { item in
+                            TransferRowView(item: item)
+                            Divider()
+                        }
+                    }
+                }
+                .frame(maxHeight: 120)
+                Divider()
+            }
+
+            // File list
+            if appState.files.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        let temporary = appState.files.filter { !$0.isPinned }
+                        let pinned = appState.files.filter { $0.isPinned }
+                        if !temporary.isEmpty {
+                            Text("Temporary").font(.caption.weight(.semibold)).foregroundColor(.secondary)
+                                .padding(.horizontal, 14).padding(.top, 8)
+                            ForEach(temporary) { file in
+                                FileRowView(file: file)
+                                Divider()
+                            }
+                        }
+                        if !pinned.isEmpty {
+                            Text("Pinned").font(.caption.weight(.semibold)).foregroundColor(.secondary)
+                                .padding(.horizontal, 14).padding(.top, 8)
+                            ForEach(pinned) { file in
+                                FileRowView(file: file)
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                .task { await appState.refreshFiles() }
+            }
+
+            Spacer(minLength: 0)
+
+            // Drop zone / Send button
+            dropZone
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "folder.badge.plus")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            Text("Drop files here to send")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var dropZone: some View {
+        Button {
+            let panel = NSOpenPanel()
+            panel.allowsMultipleSelection = true
+            panel.canChooseDirectories = false
+            if panel.runModal() == .OK {
+                panel.urls.forEach { appState.uploadFile($0) }
+            }
+        } label: {
+            Label("Send File…", systemImage: "arrow.up.circle")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .padding(12)
+        .onDrop(of: ["public.file-url"], isTargeted: nil) { providers in
+            providers.forEach { provider in
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    if let url { Task { @MainActor in appState.uploadFile(url) } }
+                }
+            }
+            return true
+        }
+    }
+}
+
+// ── FileRowView ───────────────────────────────────────────────────────────────
+
+struct FileRowView: View {
+    @EnvironmentObject var appState: AppState
+    let file: FileResponse
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: fileIcon(file.mimeType))
+                .frame(width: 24)
+                .foregroundColor(.accentColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.name)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Text(formattedSize(file.totalSize))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                Task { await appState.pinFile(file, pinned: !file.isPinned) }
+            } label: {
+                Image(systemName: file.isPinned ? "pin.slash" : "pin")
+                    .foregroundColor(file.isPinned ? .orange : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            if file.status == "ready" {
+                Button {
+                    appState.downloadFile(file)
+                } label: {
+                    Image(systemName: "arrow.down.circle")
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+}
+
+// ── TransferRowView ───────────────────────────────────────────────────────────
+
+struct TransferRowView: View {
+    let item: TransferItem
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: item.status == .uploading ? "arrow.up.circle" : "arrow.down.circle")
+                .foregroundColor(.accentColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name).font(.subheadline).lineLimit(1)
+                ProgressView(value: item.progress)
+                    .progressViewStyle(.linear)
+            }
+            Text("\(Int(item.progress * 100))%")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .frame(width: 30, alignment: .trailing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+}
+
+// ── DevicesView ───────────────────────────────────────────────────────────────
+
+struct DevicesView: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(appState.devices) { device in
+                    DeviceRowView(device: device)
+                    Divider()
+                }
+            }
+        }
+        .overlay {
+            if appState.devices.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "desktopcomputer.and.arrow.down")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("No paired devices")
+                        .foregroundColor(.secondary)
+                    Button("Pair a Device") {
+                        Task { await appState.initiatePairing() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .sheet(isPresented: $appState.isPairingActive) {
+            PairingView()
+                .environmentObject(appState)
+        }
+        .task { await appState.refreshDevices() }
+    }
+}
+
+// ── DeviceRowView ─────────────────────────────────────────────────────────────
+
+struct DeviceRowView: View {
+    @EnvironmentObject var appState: AppState
+    let device: DeviceResponse
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: platformIcon(device.platform))
+                .frame(width: 24)
+                .foregroundColor(device.trusted ? .accentColor : .secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.name)
+                    .font(.subheadline)
+                HStack(spacing: 4) {
+                    if device.trusted {
+                        Label("Trusted", systemImage: "checkmark.seal.fill")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+
+            Spacer()
+
+            if device.id != KeychainService.shared.deviceId {
+                Button(role: .destructive) {
+                    Task { await appState.authService.revokeDevice(id: device.id) }
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+                .help("Revoke device")
+            } else {
+                Text("This device")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+private func platformIcon(_ platform: String) -> String {
+    switch platform {
+    case "macos":   return "desktopcomputer"
+    case "ios":     return "iphone"
+    case "android": return "candybarphone"
+    default:        return "laptop"
+    }
+}
+
+private func fileIcon(_ mimeType: String) -> String {
+    switch mimeType {
+    case let t where t.hasPrefix("image/"):    return "photo"
+    case let t where t.hasPrefix("video/"):    return "film"
+    case "application/pdf":                    return "doc.richtext"
+    case "application/zip", "application/gzip": return "archivebox"
+    default:                                   return "doc"
+    }
+}
+
+private func formattedSize(_ bytes: Int64) -> String {
+    let formatter = ByteCountFormatter()
+    formatter.countStyle = .file
+    return formatter.string(fromByteCount: bytes)
+}

@@ -1,0 +1,14 @@
+DROP INDEX IF EXISTS idx_pairing_expires;
+DROP INDEX IF EXISTS idx_pairing_otp;
+DROP INDEX IF EXISTS idx_file_chunks_file;
+DROP INDEX IF EXISTS idx_files_expires;
+DROP INDEX IF EXISTS idx_files_user_status;
+DROP INDEX IF EXISTS idx_sessions_expires;
+DROP INDEX IF EXISTS idx_sessions_device;
+DROP INDEX IF EXISTS idx_sessions_token;
+DROP INDEX IF EXISTS idx_devices_user_active;
+DROP INDEX IF EXISTS idx_clipboard_expires;
+DROP INDEX IF EXISTS idx_clipboard_vector_clock;
+DROP INDEX IF EXISTS idx_clipboard_device;
+DROP INDEX IF EXISTS idx_clipboard_dedup;
+DROP INDEX IF EXISTS idx_clipboard_user_created;

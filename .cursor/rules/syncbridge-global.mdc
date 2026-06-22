@@ -1,0 +1,75 @@
+---
+description: SyncBridge global constraints — personal-use, single-user, simplicity first
+alwaysApply: true
+---
+
+# SyncBridge — Global Project Rules
+
+Personal-use app: **1 user**, **max 5 devices** (MacBook, Android, iPhone, Web).  
+Infra: **1 VPS**, **≤1 GB RAM**, **Go monolith**, **PostgreSQL**, **local filesystem**.
+
+## Do NOT build
+
+Multi-user, email/username login, registration, password reset, OAuth/SSO/LDAP, E2E encryption / key management, Redis/Kafka/RabbitMQ/Elasticsearch/Kubernetes/microservices.  
+**Do not default to MinIO or S3** — S3 only behind an optional feature flag.
+
+## Stack (only)
+
+Go monolith · PostgreSQL · WebSocket · WebRTC · local filesystem at `/opt/syncbridge/storage/`
+
+```
+/opt/syncbridge/storage/
+  clipboard/  images/  screenshots/  files/  temp/  pinned/
+```
+
+## Authentication
+
+- **Single master PIN**: `070901` (stored in `settings.master_pin`)
+- No username, email, registration, or password reset
+- **Backend validates PIN** — never trust frontend-only checks
+- Successful PIN → **trust device 7 days** (no PIN prompt within window)
+- After 7 days → ask for PIN again
+
+## Data retention
+
+| Content | Unpinned lifetime |
+|---------|-------------------|
+| Clipboard, images, screenshots | 2 hours |
+| Files | Delete after **successful delivery**, else 2 hours |
+
+**Pinned**: never auto-delete; permanent; synced across devices.  
+UI: **Temporary Section** + **Pinned Section** (📌 Pin / Unpin on every item).
+
+## Storage limits
+
+- Unpinned content: **max 1 GB total** — delete **oldest unpinned first** when exceeded
+- Pinned content: never auto-deleted
+
+## Transfer priority
+
+1. Same Wi-Fi direct (mDNS + WebRTC) — never upload unnecessarily on LAN
+2. Internet WebRTC
+3. TURN relay
+4. Cloud relay (last resort)
+
+**Large files**
+
+| Size | Rule |
+|------|------|
+| ≤100 MB | Cloud relay allowed |
+| 100 MB–1 GB | Direct first; cloud fallback OK |
+| >1 GB | **Never auto cloud upload** — on failure show: Retry Direct / Wait for Wi-Fi / Upload Anyway |
+
+## Performance targets
+
+| Metric | Target |
+|--------|--------|
+| Backend idle RAM | <100 MB |
+| Backend startup | <2 s |
+| Clipboard (Wi-Fi) | <500 ms |
+| Clipboard (cloud) | <2 s |
+
+## Implementation principle
+
+Choose the **simplest** implementation that meets requirements.  
+Feel like **Universal Clipboard + AirDrop + history** — fast, simple, reliable, low RAM/disk, minimal config.

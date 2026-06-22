@@ -1,0 +1,105 @@
+version: "3.9"
+
+# SyncBridge — personal-use stack (1 VPS, ≤1 GB RAM)
+#
+# Usage:
+#   docker compose up -d
+#
+# Services:
+#   API:      http://localhost:8080
+#   Postgres: localhost:5432  (syncbridge / syncbridge)
+#   Storage:  ./data/storage  (mounted as /opt/syncbridge/storage in container)
+
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncbridge-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      ENVIRONMENT: development
+      HOST: 0.0.0.0
+      PORT: 8080
+
+      DATABASE_URL: postgres://syncbridge:syncbridge@postgres:5432/syncbridge?sslmode=disable
+      DB_MAX_CONNS: 5
+      DB_MIN_CONNS: 1
+
+      RUN_MIGRATIONS: "true"
+      MIGRATIONS_PATH: /app/migrations
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: pretty
+
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:3001"
+
+      # Local filesystem storage (default)
+      OBJECT_STORAGE_TYPE: local
+      OBJECT_STORAGE_PATH: /opt/syncbridge/storage
+
+      MAX_CLIPBOARD_SIZE_MB: 10
+      MAX_FILE_SIZE_MB: 1024
+      DEFAULT_CHUNK_SIZE_MB: 4
+      DEFAULT_RETENTION_MINUTES: 120
+
+      # PIN auth: master PIN seeded in DB (070901); override via migration only
+      DEVICE_TRUST_DAYS: 7
+      MAX_DEVICES: 5
+
+      JWT_SECRET: syncbridge-dev-session-secret-32chars!!
+      JWT_ACCESS_TOKEN_TTL: 168h
+      JWT_REFRESH_TOKEN_TTL: 168h
+
+      # Clipboard encryption KEK (Phase B will remove E2E layer)
+      MAX_UNPINNED_STORAGE_GB: "1"
+      RELAY_AUTO_MAX_MB: "100"
+      AUTO_CLOUD_MAX_MB: "1024"
+
+      MDNS_ENABLED: "false"
+      STUN_URLS: "stun:stun.l.google.com:19302"
+
+      RATE_LIMIT_MAX: 120
+      RATE_LIMIT_WINDOW_SEC: 60
+      AUTH_RATE_LIMIT_MAX: 20
+    volumes:
+      - syncbridge_storage:/opt/syncbridge/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - syncbridge
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: syncbridge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: syncbridge
+      POSTGRES_USER: syncbridge
+      POSTGRES_PASSWORD: syncbridge
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U syncbridge -d syncbridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - syncbridge
+
+volumes:
+  postgres_data:
+    driver: local
+  syncbridge_storage:
+    driver: local
+
+networks:
+  syncbridge:
+    driver: bridge
