@@ -16,7 +16,7 @@ if [[ -d "$SYNCAPP_ROOT/.git" ]]; then
 fi
 
 echo "  → deploy"
-export VITE_API_URL="${VITE_API_URL:-https://api.sync.abhiraj.xyz}"
+export VITE_API_URL="${VITE_API_URL:-https://sync.abhiraj.xyz}"
 bash "$SYNCAPP_ROOT/scripts/deploy-vps.sh" 2>&1 | tee -a "$SYNCAPP_ROOT/logs/deployment.log"
 
 sync_mark_deploy

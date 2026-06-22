@@ -16,7 +16,7 @@ if [ -f config/syncapp-vps.env ]; then
 fi
 
 SYNC_WEB_DOMAIN="${SYNC_WEB_DOMAIN:-sync.abhiraj.xyz}"
-SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-api.sync.abhiraj.xyz}"
+SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-sync.abhiraj.xyz}"
 VITE_API_URL="${VITE_API_URL:-https://${SYNC_API_DOMAIN}}"
 
 echo "==> Directory layout"

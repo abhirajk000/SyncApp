@@ -14,7 +14,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
-        buildConfigField("String", "DEFAULT_API_URL", "\"https://api.sync.abhiraj.xyz\"")
+        buildConfigField("String", "DEFAULT_API_URL", "\"https://sync.abhiraj.xyz\"")
     }
 
     buildTypes {

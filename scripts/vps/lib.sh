@@ -45,7 +45,8 @@ sync_load_config() {
   # shellcheck disable=SC1091
   [[ -f "$SYNCAPP_ROOT/config/syncapp-vps.env" ]] && source "$SYNCAPP_ROOT/config/syncapp-vps.env"
   export SYNC_WEB_DOMAIN="${SYNC_WEB_DOMAIN:-sync.abhiraj.xyz}"
-  export SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-api.sync.abhiraj.xyz}"
+  export SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-sync.abhiraj.xyz}"
+  export SYNC_API_DIRECT_DOMAIN="${SYNC_API_DIRECT_DOMAIN:-api.sync.abhiraj.xyz}"
   export SYNC_WEB_LOCAL="${SYNC_WEB_LOCAL:-http://127.0.0.1:2000}"
   export SYNC_API_LOCAL="${SYNC_API_LOCAL:-http://127.0.0.1:2001}"
   export SYNC_DB_NAME="${SYNC_DB_NAME:-syncbridge}"
