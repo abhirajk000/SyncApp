@@ -83,12 +83,27 @@ func (s *CleanupService) purgeClipboard(ctx context.Context) (int64, error) {
 		DELETE FROM clipboard_entries
 		WHERE  pinned    = false
 		  AND  expires_at IS NOT NULL
-		  AND  expires_at < now()`
-	tag, err := s.pool.Exec(ctx, q)
+		  AND  expires_at < now()
+		RETURNING thumbnail_key`
+
+	rows, err := s.pool.Query(ctx, q)
 	if err != nil {
 		return 0, err
 	}
-	return tag.RowsAffected(), nil
+	defer rows.Close()
+
+	var count int64
+	for rows.Next() {
+		var thumb *string
+		if err := rows.Scan(&thumb); err != nil {
+			continue
+		}
+		count++
+		if thumb != nil {
+			_ = s.store.Delete(ctx, *thumb)
+		}
+	}
+	return count, rows.Err()
 }
 
 func (s *CleanupService) purgeFiles(ctx context.Context) (int64, error) {

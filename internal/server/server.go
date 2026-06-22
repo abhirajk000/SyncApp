@@ -180,6 +180,8 @@ func (s *Server) registerRoutes() {
 	clipboardSvc := service.NewClipboardService(
 		clipboardRepo, userSettingsRepo,
 		s.hub,
+		storageBackend,
+		thumbnail.New(),
 		s.cfg.MaxClipboardSizeMB,
 		s.cfg.DefaultRetentionMinutes,
 		s.cfg.MaxUnpinnedBytes(),
@@ -266,6 +268,7 @@ func (s *Server) registerRoutes() {
 	clipGroup.Post("/",           clipboardH.Sync)
 	clipGroup.Get("/current",     clipboardH.GetCurrent)
 	clipGroup.Get("/",            clipboardH.GetHistory)
+	clipGroup.Get("/:id/thumbnail", clipboardH.DownloadThumbnail)
 	clipGroup.Get("/:id",         clipboardH.GetByID)
 	clipGroup.Delete("/:id",      clipboardH.Delete)
 	clipGroup.Post("/:id/pin",    clipboardH.Pin)

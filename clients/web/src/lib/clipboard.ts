@@ -1,5 +1,5 @@
 import type { ClipboardEntry } from "../api";
-import { getAccessToken, getServerUrl } from "../api";
+import { fetchClipboardEntry, getAccessToken, getServerUrl } from "../api";
 
 export function isImageContentType(contentType: string): boolean {
   return contentType.startsWith("image/");
@@ -10,8 +10,21 @@ export function isImageMime(mime: string): boolean {
 }
 
 export function imageDataUrl(entry: ClipboardEntry): string {
+  if (!entry.content) return "";
   if (entry.content.startsWith("data:")) return entry.content;
   return `data:${entry.content_type};base64,${entry.content}`;
+}
+
+export async function fetchClipboardThumbnail(entryId: string): Promise<Blob | null> {
+  const base = getServerUrl().replace(/\/$/, "");
+  const token = getAccessToken();
+  if (!token) return null;
+
+  const res = await fetch(`${base}/api/v1/clipboard/${entryId}/thumbnail`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return res.blob();
 }
 
 export async function fileToBase64(file: File): Promise<string> {
@@ -35,7 +48,16 @@ export async function copyBlobToClipboard(blob: Blob): Promise<void> {
 
 export async function copyEntryToClipboard(entry: ClipboardEntry): Promise<void> {
   if (isImageContentType(entry.content_type)) {
-    const res = await fetch(imageDataUrl(entry));
+    let content = entry.content;
+    if (!content && entry.has_thumbnail) {
+      const full = await fetchClipboardEntry(entry.id);
+      content = full.content;
+    }
+    if (!content) throw new Error("Image unavailable");
+    const dataUrl = content.startsWith("data:")
+      ? content
+      : `data:${entry.content_type};base64,${content}`;
+    const res = await fetch(dataUrl);
     const blob = await res.blob();
     await copyBlobToClipboard(blob);
     return;

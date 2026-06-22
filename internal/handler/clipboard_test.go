@@ -51,6 +51,9 @@ func (s *stubClipboardService) GetHistory(_ context.Context, _ uuid.UUID, _, _ i
 func (s *stubClipboardService) GetByID(_ context.Context, _, _ uuid.UUID) (*dto.ClipboardEntryResponse, error) {
 	return s.byIDEntry, s.byIDErr
 }
+func (s *stubClipboardService) DownloadThumbnail(_ context.Context, _, _ uuid.UUID) (io.ReadCloser, int64, error) {
+	return nil, 0, service.ErrClipboardNotFound
+}
 func (s *stubClipboardService) Delete(_ context.Context, _, _ uuid.UUID) error {
 	return s.deleteErr
 }

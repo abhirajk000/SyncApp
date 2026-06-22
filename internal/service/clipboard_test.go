@@ -209,7 +209,7 @@ func newTestService(t *testing.T) (*ClipboardService, *stubClipboardStore, *stub
 	t.Helper()
 	store := &stubClipboardStore{}
 	hub := &stubHub{}
-	svc := NewClipboardService(store, &stubSettingsStore{}, hub, 10, 120, 1<<30)
+	svc := NewClipboardService(store, &stubSettingsStore{}, hub, nil, nil, 10, 120, 1<<30)
 	return svc, store, hub
 }
 

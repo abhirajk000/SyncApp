@@ -2,18 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ClipboardEntry,
   FileEntry,
+  deleteClipboardEntry,
+  deleteFileEntry,
   fetchClipboardHistory,
   fetchFiles,
   getAccessToken,
 } from "../api";
 import { AppButton, AppCard, AppSkeleton } from "../components";
+import { ClipboardImageThumb } from "../components/ClipboardImageThumb";
 import { FileRowActions } from "../components/FileRowActions";
+import { ItemDeleteButton } from "../components/ItemDeleteButton";
 import {
   ContentTypeIcon,
   IconFile,
-  IconFolder,
-  IconPin,
-  IconSend,
 } from "../components/Icons";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
 import { formatBytes, relativeTime } from "../lib/format";
@@ -72,31 +73,31 @@ export function HomePage({ onNavigate }: Props) {
     }
   }
 
+  async function removeClipboard(entry: ClipboardEntry) {
+    try {
+      await deleteClipboardEntry(entry);
+      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      toast("Deleted", "success");
+    } catch {
+      toast("Could not delete", "danger");
+    }
+  }
+
+  async function removeFile(file: FileEntry) {
+    try {
+      await deleteFileEntry(file);
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+      window.dispatchEvent(new CustomEvent("syncbridge:files-updated"));
+      toast("Deleted", "success");
+    } catch {
+      toast("Could not delete", "danger");
+    }
+  }
+
   if (loading) return <AppSkeleton rows={8} />;
 
   return (
     <div className="ds-content-narrow ds-home">
-      <section className="ds-home-section">
-        <h3 className="ds-section-title">Quick actions</h3>
-        <div className="ds-quick-actions">
-          <button type="button" className="ds-quick-action" onClick={() => onNavigate("send")}>
-            <span className="ds-quick-action-icon"><IconSend size={22} /></span>
-            <span className="ds-quick-action-label">Send something</span>
-            <span className="ds-quick-action-hint">Text, image, or file</span>
-          </button>
-          <button type="button" className="ds-quick-action" onClick={() => onNavigate("pinned")}>
-            <span className="ds-quick-action-icon"><IconPin size={22} /></span>
-            <span className="ds-quick-action-label">Pin important</span>
-            <span className="ds-quick-action-hint">Keep forever</span>
-          </button>
-          <button type="button" className="ds-quick-action" onClick={() => onNavigate("files")}>
-            <span className="ds-quick-action-icon"><IconFolder size={22} /></span>
-            <span className="ds-quick-action-label">Browse files</span>
-            <span className="ds-quick-action-hint">All transfers</span>
-          </button>
-        </div>
-      </section>
-
       <div className="ds-home-columns">
         <section className="ds-home-section">
           <h3 className="ds-section-title">Recent clipboard</h3>
@@ -105,14 +106,18 @@ export function HomePage({ onNavigate }: Props) {
           ) : (
             <ul className="ds-activity-list">
               {entries.map((entry) => (
-                <li key={entry.id}>
+                <li key={entry.id} className="ds-activity-row">
                   <button type="button" className="ds-activity-item" onClick={() => void copyEntry(entry)}>
                     <span className="ds-activity-icon ds-activity-icon--clip">
                       <ContentTypeIcon contentType={entry.content_type} size={16} />
                     </span>
                     <span className="ds-activity-body">
                       {isImageContentType(entry.content_type) ? (
-                        <img src={imageDataUrl(entry)} alt="" className="ds-activity-thumb" />
+                        entry.has_thumbnail || !entry.content ? (
+                          <ClipboardImageThumb entryId={entry.id} />
+                        ) : (
+                          <img src={imageDataUrl(entry)} alt="" className="ds-activity-thumb" loading="lazy" />
+                        )
                       ) : (
                         <span className="ds-activity-text">{entry.content}</span>
                       )}
@@ -121,6 +126,7 @@ export function HomePage({ onNavigate }: Props) {
                       </span>
                     </span>
                   </button>
+                  <ItemDeleteButton onClick={() => void removeClipboard(entry)} />
                 </li>
               ))}
             </ul>
@@ -139,7 +145,7 @@ export function HomePage({ onNavigate }: Props) {
           ) : (
             <ul className="ds-activity-list">
               {files.map((file) => (
-                <li key={file.id}>
+                <li key={file.id} className="ds-activity-row">
                   <div className="ds-activity-item ds-activity-item--static ds-activity-item--with-actions">
                     <span className="ds-activity-icon ds-activity-icon--file">
                       <IconFile size={16} />
@@ -152,6 +158,7 @@ export function HomePage({ onNavigate }: Props) {
                     </span>
                     <FileRowActions file={file} compact />
                   </div>
+                  <ItemDeleteButton onClick={() => void removeFile(file)} />
                 </li>
               ))}
             </ul>

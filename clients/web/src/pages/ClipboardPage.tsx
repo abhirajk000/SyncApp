@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ClipboardEntry,
+  deleteClipboardEntry,
   fetchClipboardHistory,
   getAccessToken,
   pinClipboard,
@@ -11,6 +12,8 @@ import {
   AppSection,
   AppSkeleton,
 } from "../components";
+import { ClipboardImageThumb } from "../components/ClipboardImageThumb";
+import { ItemDeleteButton } from "../components/ItemDeleteButton";
 import { IconPin } from "../components/Icons";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
 import { relativeTime } from "../lib/format";
@@ -19,9 +22,11 @@ import { useToast } from "../design/ToastProvider";
 function ClipboardHistoryItem({
   entry,
   onPin,
+  onDelete,
 }: {
   entry: ClipboardEntry;
   onPin: () => void;
+  onDelete: () => void;
 }) {
   const { toast } = useToast();
   const isImage = isImageContentType(entry.content_type);
@@ -39,7 +44,11 @@ function ClipboardHistoryItem({
     <li className="ds-list-item">
       <div className="ds-list-body">
         {isImage ? (
-          <img src={imageDataUrl(entry)} alt="" className="ds-image-preview ds-image-preview--thumb" />
+          entry.has_thumbnail || !entry.content ? (
+            <ClipboardImageThumb entryId={entry.id} className="ds-image-preview ds-image-preview--thumb" />
+          ) : (
+            <img src={imageDataUrl(entry)} alt="" className="ds-image-preview ds-image-preview--thumb" loading="lazy" />
+          )
         ) : (
           <span className="ds-list-primary">{entry.content}</span>
         )}
@@ -54,12 +63,14 @@ function ClipboardHistoryItem({
         <AppButton variant="ghost" size="sm" onClick={onPin}>
           Unpin
         </AppButton>
+        <ItemDeleteButton onClick={onDelete} />
       </div>
     </li>
   );
 }
 
 export function PinnedPage() {
+  const { toast } = useToast();
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +110,17 @@ export function PinnedPage() {
     }
   }
 
+  async function remove(entry: ClipboardEntry) {
+    try {
+      await deleteClipboardEntry(entry);
+      setEntries((prev) => prev.filter((x) => x.id !== entry.id));
+      toast("Deleted", "success");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+      toast("Could not delete", "danger");
+    }
+  }
+
   if (loading && entries.length === 0) {
     return <AppSkeleton rows={6} />;
   }
@@ -123,6 +145,7 @@ export function PinnedPage() {
               key={entry.id}
               entry={entry}
               onPin={() => unpin(entry)}
+              onDelete={() => void remove(entry)}
             />
           ))}
         </ul>

@@ -41,6 +41,7 @@ export interface ClipboardEntry {
   id: string;
   content_type: string;
   content: string;
+  has_thumbnail?: boolean;
   source_device_id: string;
   pinned: boolean;
   created_at: string;
@@ -180,11 +181,22 @@ export async function fetchCurrentClipboard(): Promise<ClipboardEntry> {
   return apiRequest<ClipboardEntry>("/api/v1/clipboard/current");
 }
 
+export async function fetchClipboardEntry(id: string): Promise<ClipboardEntry> {
+  return apiRequest<ClipboardEntry>(`/api/v1/clipboard/${id}`);
+}
+
 export async function pinClipboard(id: string, pinned: boolean): Promise<void> {
   await apiRequest<void>(`/api/v1/clipboard/${id}/pin`, {
     method: "POST",
     body: JSON.stringify({ pinned }),
   });
+}
+
+export async function deleteClipboardEntry(entry: ClipboardEntry): Promise<void> {
+  if (entry.pinned) {
+    await pinClipboard(entry.id, false);
+  }
+  await apiRequest<void>(`/api/v1/clipboard/${entry.id}`, { method: "DELETE" });
 }
 
 export async function fetchFiles(): Promise<FileListResponse> {
@@ -196,6 +208,13 @@ export async function pinFile(id: string, pinned: boolean): Promise<void> {
     method: "POST",
     body: JSON.stringify({ pinned }),
   });
+}
+
+export async function deleteFileEntry(file: FileEntry): Promise<void> {
+  if (file.is_pinned) {
+    await pinFile(file.id, false);
+  }
+  await apiRequest<void>(`/api/v1/files/${file.id}`, { method: "DELETE" });
 }
 
 export async function syncClipboard(

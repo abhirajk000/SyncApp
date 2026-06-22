@@ -1,11 +1,15 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +17,8 @@ import (
 
 	"github.com/syncbridge/api/internal/dto"
 	"github.com/syncbridge/api/internal/repository"
+	"github.com/syncbridge/api/internal/storage"
+	"github.com/syncbridge/api/internal/thumbnail"
 	"github.com/syncbridge/api/internal/ws"
 )
 
@@ -49,6 +55,8 @@ type ClipboardService struct {
 	entries                 clipboardStore
 	settings                userSettingsStore
 	hub                     hubBroadcaster
+	store                   storage.Backend
+	thumb                   *thumbnail.Generator
 	maxContentSize          int
 	defaultRetentionMinutes int
 	maxUnpinnedBytes        int64
@@ -58,6 +66,8 @@ func NewClipboardService(
 	entries clipboardStore,
 	settings userSettingsStore,
 	hub hubBroadcaster,
+	store storage.Backend,
+	thumb *thumbnail.Generator,
 	maxContentSizeMB int,
 	defaultRetentionMinutes int,
 	maxUnpinnedBytes int64,
@@ -66,6 +76,8 @@ func NewClipboardService(
 		entries:                 entries,
 		settings:                settings,
 		hub:                     hub,
+		store:                   store,
+		thumb:                   thumb,
 		maxContentSize:          maxContentSizeMB * 1024 * 1024,
 		defaultRetentionMinutes: defaultRetentionMinutes,
 		maxUnpinnedBytes:        maxUnpinnedBytes,
@@ -119,6 +131,7 @@ func (s *ClipboardService) Sync(
 		Pinned:         false,
 		ExpiresAt:      &expiresAt,
 	}
+	entry.ThumbnailKey = s.storeImageThumbnail(ctx, entry.ID, contentType, contentBytes)
 
 	if err := s.entries.Create(ctx, entry); err != nil {
 		return nil, false, fmt.Errorf("create entry: %w", err)
@@ -150,7 +163,7 @@ func (s *ClipboardService) GetHistory(ctx context.Context, userID uuid.UUID, lim
 	}
 	responses := make([]dto.ClipboardEntryResponse, 0, len(entries))
 	for _, e := range entries {
-		responses = append(responses, *toEntryResponse(e, e.Content, false))
+		responses = append(responses, *toHistoryEntryResponse(e))
 	}
 	return &dto.ClipboardHistoryResponse{
 		Entries: responses,
@@ -173,11 +186,44 @@ func (s *ClipboardService) GetByID(ctx context.Context, userID, id uuid.UUID) (*
 }
 
 func (s *ClipboardService) Delete(ctx context.Context, userID, id uuid.UUID) error {
-	err := s.entries.DeleteByID(ctx, id, userID)
+	e, err := s.entries.FindByID(ctx, id, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrClipboardNotFound
+		}
+		return err
+	}
+	s.deleteThumbnail(ctx, e.ThumbnailKey)
+	err = s.entries.DeleteByID(ctx, id, userID)
 	if errors.Is(err, repository.ErrNotFound) {
 		return ErrClipboardNotFound
 	}
 	return err
+}
+
+// DownloadThumbnail streams the stored JPEG preview for a clipboard image entry.
+func (s *ClipboardService) DownloadThumbnail(
+	ctx context.Context,
+	userID, id uuid.UUID,
+) (io.ReadCloser, int64, error) {
+	e, err := s.entries.FindByID(ctx, id, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, 0, ErrClipboardNotFound
+		}
+		return nil, 0, err
+	}
+	if e.ThumbnailKey == nil || s.store == nil {
+		return nil, 0, ErrClipboardNotFound
+	}
+	rc, size, err := s.store.Get(ctx, *e.ThumbnailKey)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, 0, ErrClipboardNotFound
+		}
+		return nil, 0, err
+	}
+	return rc, size, nil
 }
 
 func (s *ClipboardService) Pin(ctx context.Context, userID, id uuid.UUID, pinned bool) error {
@@ -206,7 +252,7 @@ func (s *ClipboardService) Pin(ctx context.Context, userID, id uuid.UUID, pinned
 }
 
 func (s *ClipboardService) enforceQuota(ctx context.Context, userID uuid.UUID, incoming int64) error {
-	return enforceCombinedQuota(ctx, userID, incoming, s.maxUnpinnedBytes, s.entries, nil, nil)
+	return enforceCombinedQuota(ctx, userID, incoming, s.maxUnpinnedBytes, s.entries, nil, nil, s)
 }
 
 func contentHash(contentType string, content []byte) string {
@@ -258,6 +304,7 @@ func toEntryResponse(e *repository.ClipboardEntry, plain string, deduped bool) *
 		ID:             e.ID.String(),
 		ContentType:    e.ContentType,
 		Content:        plain,
+		HasThumbnail:   e.ThumbnailKey != nil && dto.IsImageContentType(e.ContentType),
 		SourceDeviceID: e.SourceDeviceID.String(),
 		PlaintextSize:  e.PlaintextSize,
 		VectorClock:    map[string]int64(e.VectorClock),
@@ -267,4 +314,59 @@ func toEntryResponse(e *repository.ClipboardEntry, plain string, deduped bool) *
 		CreatedAt:      e.CreatedAt,
 		ExpiresAt:      e.ExpiresAt,
 	}
+}
+
+func toHistoryEntryResponse(e *repository.ClipboardEntry) *dto.ClipboardEntryResponse {
+	resp := toEntryResponse(e, e.Content, false)
+	if resp.HasThumbnail {
+		resp.Content = ""
+	}
+	return resp
+}
+
+func (s *ClipboardService) storeImageThumbnail(
+	ctx context.Context,
+	entryID uuid.UUID,
+	contentType string,
+	content []byte,
+) *string {
+	if s.store == nil || s.thumb == nil || !dto.IsImageContentType(contentType) {
+		return nil
+	}
+	raw, err := decodeClipboardImageBytes(content)
+	if err != nil {
+		return nil
+	}
+	thumbData, err := s.thumb.Generate(raw, contentType)
+	if err != nil {
+		return nil
+	}
+	key := storage.ClipboardThumbnailKey(entryID.String())
+	if err := s.store.Put(ctx, key, bytes.NewReader(thumbData), int64(len(thumbData)), "image/jpeg"); err != nil {
+		log.Warn().Err(err).Str("entry_id", entryID.String()).Msg("store clipboard thumbnail failed")
+		return nil
+	}
+	return &key
+}
+
+func (s *ClipboardService) deleteThumbnail(ctx context.Context, key *string) {
+	if s.store == nil || key == nil {
+		return
+	}
+	_ = s.store.Delete(ctx, *key)
+}
+
+func (s *ClipboardService) DeleteClipboardObjects(ctx context.Context, e *repository.ClipboardEntry) error {
+	s.deleteThumbnail(ctx, e.ThumbnailKey)
+	return nil
+}
+
+func decodeClipboardImageBytes(content []byte) ([]byte, error) {
+	s := string(content)
+	if strings.HasPrefix(s, "data:") {
+		if idx := strings.Index(s, ","); idx >= 0 {
+			s = s[idx+1:]
+		}
+	}
+	return base64.StdEncoding.DecodeString(s)
 }

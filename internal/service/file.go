@@ -157,7 +157,7 @@ func (s *FileService) InitUpload(
 		mode = repository.TransferModeWebRTC
 	}
 
-	if err := enforceCombinedQuota(ctx, userID, req.TotalSize, s.maxUnpinnedBytes, nil, s.files, s.gc); err != nil {
+	if err := enforceCombinedQuota(ctx, userID, req.TotalSize, s.maxUnpinnedBytes, nil, s.files, s.gc, nil); err != nil {
 		return nil, err
 	}
 

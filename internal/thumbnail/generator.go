@@ -1,13 +1,10 @@
-// Package thumbnail generates 256×256 JPEG preview images for uploaded files.
+// Package thumbnail generates small JPEG preview images for uploaded files.
 //
 // Supported source types:
 //   JPEG, PNG, GIF (first frame), WebP, BMP, TIFF
 //
 // Unsupported types (video, PDF, ZIP) return ErrUnsupported so callers can
 // skip thumbnail generation without treating it as an error.
-//
-// Quality: Catmull-Rom bicubic resampling for downscaling (golang.org/x/image/draw).
-// Output:  JPEG, quality 80, progressive-friendly.
 package thumbnail
 
 import (
@@ -17,8 +14,8 @@ import (
 	"image/jpeg"
 
 	// Register decoders so image.Decode can handle each format.
-	_ "image/gif"  // GIF
-	_ "image/png"  // PNG
+	_ "image/gif" // GIF
+	_ "image/png" // PNG
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/tiff" // TIFF
@@ -27,9 +24,9 @@ import (
 
 const (
 	// ThumbSize is the maximum width or height of the generated thumbnail.
-	ThumbSize = 256
+	ThumbSize = 128
 	// JPEGQuality is the JPEG encoding quality (0–100).
-	JPEGQuality = 80
+	JPEGQuality = 65
 )
 
 // ErrUnsupported is returned when the MIME type has no thumbnail implementation.
@@ -51,11 +48,8 @@ func CanThumbnail(mimeType string) bool {
 	return false
 }
 
-// Generate decodes src using mimeType as a hint, produces a 256×256 JPEG,
+// Generate decodes src using mimeType as a hint, produces a small JPEG,
 // and returns the encoded bytes.
-//
-// Returns ErrUnsupported for non-image MIME types so callers can decide whether
-// to store a placeholder or skip thumbnail storage entirely.
 func (g *Generator) Generate(src []byte, mimeType string) ([]byte, error) {
 	if !CanThumbnail(mimeType) {
 		return nil, ErrUnsupported
@@ -70,29 +64,45 @@ func (g *Generator) Generate(src []byte, mimeType string) ([]byte, error) {
 	return encodeJPEG(thumb)
 }
 
-// ── private helpers ───────────────────────────────────────────────────────────
-
 // scaleTo resizes img to fit within maxW × maxH while preserving aspect ratio.
-// Uses CatmullRom bicubic resampling for high-quality downscaling.
+// Large sources are halved with fast scaling before the final high-quality pass.
 func scaleTo(src image.Image, maxW, maxH int) image.Image {
-	bounds := src.Bounds()
+	current := src
+	for {
+		bounds := current.Bounds()
+		srcW := bounds.Dx()
+		srcH := bounds.Dy()
+		if srcW <= maxW*2 && srcH <= maxH*2 {
+			break
+		}
+		nw := srcW / 2
+		nh := srcH / 2
+		if nw < 1 {
+			nw = 1
+		}
+		if nh < 1 {
+			nh = 1
+		}
+		dst := image.NewRGBA(image.Rect(0, 0, nw, nh))
+		draw.ApproxBiLinear.Scale(dst, dst.Bounds(), current, bounds, draw.Over, nil)
+		current = dst
+	}
+
+	bounds := current.Bounds()
 	srcW := bounds.Dx()
 	srcH := bounds.Dy()
 	if srcW == 0 || srcH == 0 {
-		return src
+		return current
 	}
 
-	// Compute scale factor to fit within the bounding box.
 	scaleX := float64(maxW) / float64(srcW)
 	scaleY := float64(maxH) / float64(srcH)
 	scale := scaleX
 	if scaleY < scale {
 		scale = scaleY
 	}
-
-	// Don't upscale tiny images.
 	if scale >= 1.0 {
-		return src
+		return current
 	}
 
 	dstW := int(float64(srcW) * scale)
@@ -105,7 +115,7 @@ func scaleTo(src image.Image, maxW, maxH int) image.Image {
 	}
 
 	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), src, bounds, draw.Over, nil)
+	draw.CatmullRom.Scale(dst, dst.Bounds(), current, bounds, draw.Over, nil)
 	return dst
 }
 

@@ -8,7 +8,8 @@
 //
 //	files/{file_id}/chunk_{n}     — raw uploaded chunk (temporary)
 //	files/{file_id}/data          — assembled, optionally compressed final object
-//	files/{file_id}/thumbnail.jpg — 256×256 JPEG thumbnail (images only)
+//	files/{file_id}/thumbnail.jpg — small JPEG thumbnail (images only)
+//	clipboard/{entry_id}/thumbnail.jpg — clipboard image preview
 package storage
 
 import (
@@ -93,4 +94,9 @@ func DataKey(keyPrefix string) string {
 // ThumbnailKey returns the storage key for the file's JPEG thumbnail.
 func ThumbnailKey(keyPrefix string) string {
 	return fmt.Sprintf("%s/thumbnail.jpg", keyPrefix)
+}
+
+// ClipboardThumbnailKey returns the storage key for a clipboard image thumbnail.
+func ClipboardThumbnailKey(entryID string) string {
+	return fmt.Sprintf("clipboard/%s/thumbnail.jpg", entryID)
 }

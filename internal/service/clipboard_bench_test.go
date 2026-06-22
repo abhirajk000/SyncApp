@@ -15,6 +15,8 @@ func newBenchService(b *testing.B) *ClipboardService {
 		&stubClipboardStore{},
 		&stubSettingsStore{},
 		nil,
+		nil,
+		nil,
 		10,
 		120,
 		1<<30,

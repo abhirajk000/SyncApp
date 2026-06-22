@@ -220,7 +220,7 @@ func (h *FileHandler) Download(c *fiber.Ctx) error {
 
 // ── GET /api/v1/files/:id/thumbnail ──────────────────────────────────────────
 
-// DownloadThumbnail streams the 256×256 JPEG thumbnail.
+// DownloadThumbnail streams the small JPEG preview for a clipboard image entry.
 // Returns 404 for non-image files or files not yet processed.
 func (h *FileHandler) DownloadThumbnail(c *fiber.Ctx) error {
 	userID, _, err := extractIdentity(c)
@@ -240,6 +240,7 @@ func (h *FileHandler) DownloadThumbnail(c *fiber.Ctx) error {
 	defer rc.Close()
 
 	c.Set(fiber.HeaderContentType, "image/jpeg")
+	c.Set("Cache-Control", "public, max-age=86400")
 	if size > 0 {
 		c.Set(fiber.HeaderContentLength, strconv.FormatInt(size, 10))
 	}

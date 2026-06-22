@@ -75,6 +75,7 @@ type ClipboardEntry struct {
 	VectorClock    VectorClock
 	Pinned         bool
 	PinnedAt       *time.Time
+	ThumbnailKey   *string
 	CreatedAt      time.Time
 	ExpiresAt      *time.Time
 }
@@ -102,15 +103,15 @@ func (r *ClipboardRepository) Create(ctx context.Context, e *ClipboardEntry) err
 		INSERT INTO clipboard_entries
 		            (id, user_id, source_device_id, content_type,
 		             content, content_hash, plaintext_size,
-		             vector_clock, pinned, pinned_at, created_at, expires_at)
-		VALUES      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), $11)
+		             vector_clock, pinned, pinned_at, thumbnail_key, created_at, expires_at)
+		VALUES      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), $12)
 		RETURNING   created_at`
 
 	return mapError(
 		r.pool.QueryRow(ctx, q,
 			e.ID, e.UserID, e.SourceDeviceID, e.ContentType,
 			e.Content, e.ContentHash, e.PlaintextSize,
-			vcJSON, e.Pinned, e.PinnedAt, e.ExpiresAt,
+			vcJSON, e.Pinned, e.PinnedAt, e.ThumbnailKey, e.ExpiresAt,
 		).Scan(&e.CreatedAt),
 	)
 }
@@ -120,7 +121,7 @@ func (r *ClipboardRepository) FindByID(ctx context.Context, id, userID uuid.UUID
 	const q = `
 		SELECT id, user_id, source_device_id, content_type,
 		       content, content_hash, plaintext_size,
-		       vector_clock, pinned, pinned_at, created_at, expires_at
+		       vector_clock, pinned, pinned_at, thumbnail_key, created_at, expires_at
 		FROM   clipboard_entries
 		WHERE  id      = $1
 		  AND  user_id = $2`
@@ -134,7 +135,7 @@ func (r *ClipboardRepository) FindByContentHash(ctx context.Context, userID uuid
 	const q = `
 		SELECT id, user_id, source_device_id, content_type,
 		       content, content_hash, plaintext_size,
-		       vector_clock, pinned, pinned_at, created_at, expires_at
+		       vector_clock, pinned, pinned_at, thumbnail_key, created_at, expires_at
 		FROM   clipboard_entries
 		WHERE  user_id          = $1
 		  AND  content_hash  = $2
@@ -151,7 +152,7 @@ func (r *ClipboardRepository) FindLatestByUser(ctx context.Context, userID uuid.
 	const q = `
 		SELECT id, user_id, source_device_id, content_type,
 		       content, content_hash, plaintext_size,
-		       vector_clock, pinned, pinned_at, created_at, expires_at
+		       vector_clock, pinned, pinned_at, thumbnail_key, created_at, expires_at
 		FROM   clipboard_entries
 		WHERE  user_id  = $1
 		  AND  (expires_at IS NULL OR expires_at > now())
@@ -190,7 +191,7 @@ func (r *ClipboardRepository) FindByUser(ctx context.Context, userID uuid.UUID, 
 	const q = `
 		SELECT id, user_id, source_device_id, content_type,
 		       content, content_hash, plaintext_size,
-		       vector_clock, pinned, pinned_at, created_at, expires_at
+		       vector_clock, pinned, pinned_at, thumbnail_key, created_at, expires_at
 		FROM   clipboard_entries
 		WHERE  user_id  = $1
 		  AND  (expires_at IS NULL OR expires_at > now())
@@ -289,7 +290,7 @@ func (r *ClipboardRepository) FindOldestUnpinned(ctx context.Context, userID uui
 	const q = `
 		SELECT id, user_id, source_device_id, content_type,
 		       content, content_hash, plaintext_size,
-		       vector_clock, pinned, pinned_at, created_at, expires_at
+		       vector_clock, pinned, pinned_at, thumbnail_key, created_at, expires_at
 		FROM   clipboard_entries
 		WHERE  user_id = $1 AND pinned = false
 		  AND  (expires_at IS NULL OR expires_at > now())
@@ -353,6 +354,7 @@ func (r *ClipboardRepository) scanRow(row pgxRow) (*ClipboardEntry, error) {
 		&vcBytes,
 		&e.Pinned,
 		&e.PinnedAt,
+		&e.ThumbnailKey,
 		&e.CreatedAt,
 		&e.ExpiresAt,
 	)

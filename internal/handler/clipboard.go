@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"io"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -21,6 +22,7 @@ type clipboardService interface {
 	GetCurrent(ctx context.Context, userID uuid.UUID) (*dto.ClipboardEntryResponse, error)
 	GetHistory(ctx context.Context, userID uuid.UUID, limit, offset int) (*dto.ClipboardHistoryResponse, error)
 	GetByID(ctx context.Context, userID, id uuid.UUID) (*dto.ClipboardEntryResponse, error)
+	DownloadThumbnail(ctx context.Context, userID, id uuid.UUID) (io.ReadCloser, int64, error)
 	Delete(ctx context.Context, userID, id uuid.UUID) error
 	Pin(ctx context.Context, userID, id uuid.UUID, pinned bool) error
 }
@@ -129,6 +131,36 @@ func (h *ClipboardHandler) GetByID(c *fiber.Ctx) error {
 		return mapClipboardError(err)
 	}
 	return c.JSON(entry)
+}
+
+// ── GET /api/v1/clipboard/:id/thumbnail ──────────────────────────────────────
+
+// DownloadThumbnail streams the small JPEG preview for a clipboard image entry.
+func (h *ClipboardHandler) DownloadThumbnail(c *fiber.Ctx) error {
+	userID, _, err := extractIdentity(c)
+	if err != nil {
+		return fiber.NewError(fiber.StatusUnauthorized, "missing auth context")
+	}
+
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid entry id")
+	}
+
+	rc, size, err := h.svc.DownloadThumbnail(c.Context(), userID, id)
+	if err != nil {
+		return mapClipboardError(err)
+	}
+	defer rc.Close()
+
+	c.Set(fiber.HeaderContentType, "image/jpeg")
+	c.Set("Cache-Control", "public, max-age=86400")
+	if size > 0 {
+		c.Set(fiber.HeaderContentLength, strconv.FormatInt(size, 10))
+	}
+	c.Status(fiber.StatusOK)
+	_, copyErr := io.Copy(c.Response().BodyWriter(), rc)
+	return copyErr
 }
 
 // ── DELETE /api/v1/clipboard/:id ─────────────────────────────────────────────

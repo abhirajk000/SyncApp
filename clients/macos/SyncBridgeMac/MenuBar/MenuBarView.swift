@@ -22,14 +22,16 @@ struct MenuBarView: View {
 
     enum Tab: String, CaseIterable {
         case clipboard = "Clipboard"
+        case pinned    = "Pinned"
+        case send      = "Send"
         case files     = "Files"
-        case devices   = "Devices"
 
         var icon: String {
             switch self {
             case .clipboard: return "doc.on.clipboard"
-            case .files:     return "folder"
-            case .devices:   return "desktopcomputer"
+            case .pinned:    return "pin.fill"
+            case .send:      return "paperplane.fill"
+            case .files:     return "folder.fill"
             }
         }
     }
@@ -81,6 +83,14 @@ struct MenuBarView: View {
             Spacer()
 
             statusBadge
+
+            Button {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            } label: {
+                Image(systemName: "gearshape")
+                    .help("Settings")
+            }
+            .buttonStyle(.plain)
 
             Button {
                 Task { await appState.initiatePairing() }
@@ -150,11 +160,13 @@ struct MenuBarView: View {
     private var tabContent: some View {
         switch selectedTab {
         case .clipboard:
-            ClipboardHistoryView()
+            HomeView(onSeeAllFiles: { selectedTab = .files })
+        case .pinned:
+            PinnedClipboardView()
+        case .send:
+            SendTabView()
         case .files:
             FilesView()
-        case .devices:
-            DevicesView()
         }
     }
 }
@@ -163,10 +175,15 @@ struct MenuBarView: View {
 
 struct FilesView: View {
     @EnvironmentObject var appState: AppState
+    @State private var fileTab: FileTab = .temporary
+
+    private enum FileTab: String, CaseIterable {
+        case temporary = "Temporary"
+        case pinned = "Pinned"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Active transfers
             if !appState.activeTransfers.isEmpty {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -180,29 +197,37 @@ struct FilesView: View {
                 Divider()
             }
 
-            // File list
-            if appState.files.isEmpty {
+            Picker("Files", selection: $fileTab) {
+                ForEach(FileTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, DS.Space.md)
+            .padding(.vertical, DS.Space.sm)
+
+            let temporary = appState.files.filter { !$0.isPinned }
+            let pinned = appState.files.filter { $0.isPinned }
+            let showing = fileTab == .temporary ? temporary : pinned
+
+            if showing.isEmpty {
                 emptyState
+            } else if fileTab == .temporary {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: DS.Space.md)], spacing: DS.Space.md) {
+                        ForEach(temporary) { file in
+                            FileGridItemView(file: file)
+                        }
+                    }
+                    .padding(DS.Space.md)
+                }
+                .task { await appState.refreshFiles() }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        let temporary = appState.files.filter { !$0.isPinned }
-                        let pinned = appState.files.filter { $0.isPinned }
-                        if !temporary.isEmpty {
-                            Text("Temporary").font(.caption.weight(.semibold)).foregroundColor(.secondary)
-                                .padding(.horizontal, 14).padding(.top, 8)
-                            ForEach(temporary) { file in
-                                FileRowView(file: file)
-                                Divider()
-                            }
-                        }
-                        if !pinned.isEmpty {
-                            Text("Pinned").font(.caption.weight(.semibold)).foregroundColor(.secondary)
-                                .padding(.horizontal, 14).padding(.top, 8)
-                            ForEach(pinned) { file in
-                                FileRowView(file: file)
-                                Divider()
-                            }
+                        ForEach(pinned) { file in
+                            FileRowView(file: file)
+                            Divider()
                         }
                     }
                 }
@@ -210,19 +235,18 @@ struct FilesView: View {
             }
 
             Spacer(minLength: 0)
-
-            // Drop zone / Send button
-            dropZone
         }
     }
 
     private var emptyState: some View {
         AppEmptyState(
             icon: "folder.badge.plus",
-            title: "No files yet",
-            description: "Drop files here or use Send File to sync across devices.",
-            actionTitle: "Send File…",
-            action: openFilePicker
+            title: fileTab == .pinned ? "No pinned files" : "No files yet",
+            description: fileTab == .pinned
+                ? "Pin files to keep them across devices."
+                : "Send files from the Send tab or another device.",
+            actionTitle: fileTab == .temporary ? "Send File…" : nil,
+            action: fileTab == .temporary ? openFilePicker : nil
         )
     }
 
@@ -232,21 +256,6 @@ struct FilesView: View {
         panel.canChooseDirectories = false
         if panel.runModal() == .OK {
             panel.urls.forEach { appState.uploadFile($0) }
-        }
-    }
-
-    private var dropZone: some View {
-        AppButton(title: "Send File…", variant: .primary) {
-            openFilePicker()
-        }
-        .padding(DS.Space.md)
-        .onDrop(of: ["public.file-url"], isTargeted: nil) { providers in
-            providers.forEach { provider in
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    if let url { Task { @MainActor in appState.uploadFile(url) } }
-                }
-            }
-            return true
         }
     }
 }

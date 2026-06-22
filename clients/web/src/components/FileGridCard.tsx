@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Pin,
   PinOff,
+  X,
 } from "lucide-react";
 import { copyFileToClipboard, isImageMime } from "../lib/clipboard";
 import {
@@ -20,16 +21,17 @@ import {
   fetchFileThumbnail,
   getFileExtension,
   getFilePreviewKind,
-  IMAGE_PREVIEW_MAX_BYTES,
   isTextMime,
   TEXT_PREVIEW_MAX_BYTES,
   type FilePreviewKind,
 } from "../lib/files";
 import { useToast } from "../design/ToastProvider";
+import { ItemDeleteButton } from "./ItemDeleteButton";
 
 interface Props {
   file: FileEntry;
   onPin: (file: FileEntry) => void;
+  onDelete?: (file: FileEntry) => void;
 }
 
 function TypeIcon({ kind, size = 40 }: { kind: FilePreviewKind; size?: number }) {
@@ -71,18 +73,6 @@ function FilePreviewContent({ file }: { file: FileEntry }) {
       if (thumb) {
         objectUrl = URL.createObjectURL(thumb);
         setImageSrc(objectUrl);
-        setLoading(false);
-        return;
-      }
-      if (file.total_size <= IMAGE_PREVIEW_MAX_BYTES) {
-        try {
-          const blob = await fetchFileBlob(file.id);
-          if (cancelled) return;
-          objectUrl = URL.createObjectURL(blob);
-          setImageSrc(objectUrl);
-        } catch {
-          setUseTypeFallback(true);
-        }
       } else {
         setUseTypeFallback(true);
       }
@@ -133,7 +123,7 @@ function FilePreviewContent({ file }: { file: FileEntry }) {
   }
 
   if (kind === "image" && imageSrc && !useTypeFallback) {
-    return <img src={imageSrc} alt="" className="ds-file-preview-image" draggable={false} />;
+    return <img src={imageSrc} alt="" className="ds-file-preview-image" draggable={false} loading="lazy" />;
   }
 
   if (kind === "text" && textPreview && !useTypeFallback) {
@@ -152,7 +142,7 @@ function FilePreviewContent({ file }: { file: FileEntry }) {
   );
 }
 
-export function FileGridCard({ file, onPin }: Props) {
+export function FileGridCard({ file, onPin, onDelete }: Props) {
   const { toast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -196,12 +186,21 @@ export function FileGridCard({ file, onPin }: Props) {
 
   const canCopy = ready && (isImageMime(file.mime_type) || isTextMime(file.mime_type));
 
+  function handleDelete() {
+    if (!onDelete) return;
+    setMenuOpen(false);
+    onDelete(file);
+  }
+
   return (
     <article className="ds-file-grid-item">
       <div className="ds-file-grid-preview-wrap" ref={menuRef}>
         <div className="ds-file-preview">
           <FilePreviewContent file={file} />
         </div>
+        {onDelete && (
+          <ItemDeleteButton overlay onClick={handleDelete} label={`Delete ${file.name}`} />
+        )}
         <button
           type="button"
           className="ds-file-grid-menu-btn"
@@ -245,6 +244,12 @@ export function FileGridCard({ file, onPin }: Props) {
                 </>
               )}
             </button>
+            {onDelete && (
+              <button type="button" role="menuitem" onClick={handleDelete}>
+                <X size={16} strokeWidth={1.75} />
+                Delete
+              </button>
+            )}
           </div>
         )}
       </div>

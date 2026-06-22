@@ -44,6 +44,15 @@ struct SettingsView: View {
                     }
             }
 
+            // ── Devices ───────────────────────────────────────────────────────
+            if case .loggedIn = appState.authState {
+                Section("Devices") {
+                    Button("Pair a new device") {
+                        Task { await appState.initiatePairing() }
+                    }
+                }
+            }
+
             // ── Account ───────────────────────────────────────────────────────
             if case .loggedIn = appState.authState {
                 Section("Account") {

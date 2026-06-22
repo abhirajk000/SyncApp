@@ -85,4 +85,3 @@ export function getFilePreviewKind(mime: string, name: string): FilePreviewKind 
 }
 
 export const TEXT_PREVIEW_MAX_BYTES = 512 * 1024;
-export const IMAGE_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;

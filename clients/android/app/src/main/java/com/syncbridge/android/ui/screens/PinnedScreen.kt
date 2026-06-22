@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.syncbridge.android.data.ClipboardEntry
 import com.syncbridge.android.ui.components.AppEmptyState
 import com.syncbridge.android.ui.components.AppSectionTitle
+import androidx.compose.ui.unit.dp
 import com.syncbridge.android.ui.theme.SyncTokens
 import com.syncbridge.android.util.relativeTime
 

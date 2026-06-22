@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { FileEntry, fetchFiles, getAccessToken, pinFile } from "../api";
+import { FileEntry, deleteFileEntry, fetchFiles, getAccessToken, pinFile } from "../api";
 import { AppButton, AppEmptyState, AppSection, AppSkeleton } from "../components";
 import { FileGridCard } from "../components/FileGridCard";
 import { FileRowActions } from "../components/FileRowActions";
+import { ItemDeleteButton } from "../components/ItemDeleteButton";
 import { IconFolder } from "../components/Icons";
 import { formatBytes, relativeTime } from "../lib/format";
+import { useToast } from "../design/ToastProvider";
 
 export function FilesPage() {
+  const { toast } = useToast();
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +47,18 @@ export function FilesPage() {
     }
   }
 
+  async function remove(file: FileEntry) {
+    try {
+      await deleteFileEntry(file);
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+      window.dispatchEvent(new CustomEvent("syncbridge:files-updated"));
+      toast("Deleted", "success");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+      toast("Could not delete", "danger");
+    }
+  }
+
   const filtered = files.filter((f) => (tab === "pinned" ? f.is_pinned : !f.is_pinned));
 
   if (loading && files.length === 0) return <AppSkeleton rows={5} />;
@@ -69,7 +84,7 @@ export function FilesPage() {
         <AppSection title="Temporary files">
           <div className="ds-file-grid">
             {filtered.map((file) => (
-              <FileGridCard key={file.id} file={file} onPin={togglePin} />
+              <FileGridCard key={file.id} file={file} onPin={togglePin} onDelete={remove} />
             ))}
           </div>
         </AppSection>
@@ -89,6 +104,7 @@ export function FilesPage() {
                   <AppButton variant="ghost" size="sm" onClick={() => togglePin(file)}>
                     {file.is_pinned ? "Unpin" : "Pin"}
                   </AppButton>
+                  <ItemDeleteButton onClick={() => void remove(file)} />
                 </div>
               </li>
             ))}

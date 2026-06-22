@@ -1,6 +1,9 @@
 package dto
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // ── Supported content types ───────────────────────────────────────────────────
 
@@ -28,6 +31,11 @@ var SupportedContentTypes = map[string]bool{
 	ContentTypeWebP:  true,
 }
 
+// IsImageContentType reports whether ct is an image clipboard MIME type.
+func IsImageContentType(ct string) bool {
+	return strings.HasPrefix(ct, "image/")
+}
+
 // ── Requests ──────────────────────────────────────────────────────────────────
 
 // ClipboardSyncRequest is the body for POST /api/v1/clipboard.
@@ -44,7 +52,8 @@ type ClipboardSyncRequest struct {
 type ClipboardEntryResponse struct {
 	ID             string            `json:"id"`
 	ContentType    string            `json:"content_type"`
-	Content        string            `json:"content"`          // decrypted plaintext
+	Content        string            `json:"content"`          // decrypted plaintext; omitted for image list rows
+	HasThumbnail   bool              `json:"has_thumbnail"`    // true when content is stripped from list responses
 	SourceDeviceID string            `json:"source_device_id"`
 	PlaintextSize  int               `json:"plaintext_size"`
 	VectorClock    map[string]int64  `json:"vector_clock"`

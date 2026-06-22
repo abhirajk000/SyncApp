@@ -25,6 +25,10 @@ type storageDeleter interface {
 	DeleteFileObjects(ctx context.Context, f *repository.File) error
 }
 
+type clipboardObjectDeleter interface {
+	DeleteClipboardObjects(ctx context.Context, e *repository.ClipboardEntry) error
+}
+
 func enforceCombinedQuota(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -32,7 +36,8 @@ func enforceCombinedQuota(
 	maxBytes int64,
 	clip quotaClipboardStore,
 	files quotaFileStore,
-	store storageDeleter,
+	fileGC storageDeleter,
+	clipGC clipboardObjectDeleter,
 ) error {
 	if maxBytes <= 0 {
 		return nil
@@ -56,7 +61,7 @@ func enforceCombinedQuota(
 		if used+incoming <= maxBytes {
 			return nil
 		}
-		if err := evictOldestUnpinnedForUser(ctx, userID, clip, files, store); err != nil {
+		if err := evictOldestUnpinnedForUser(ctx, userID, clip, files, fileGC, clipGC); err != nil {
 			return err
 		}
 	}
@@ -67,7 +72,8 @@ func evictOldestUnpinnedForUser(
 	userID uuid.UUID,
 	clip quotaClipboardStore,
 	files quotaFileStore,
-	store storageDeleter,
+	fileGC storageDeleter,
+	clipGC clipboardObjectDeleter,
 ) error {
 	var clipEntry *repository.ClipboardEntry
 	var fileEntry *repository.File
@@ -96,10 +102,13 @@ func evictOldestUnpinnedForUser(
 		if err != nil {
 			return err
 		}
-		if store != nil {
-			_ = store.DeleteFileObjects(ctx, deleted)
+		if fileGC != nil {
+			_ = fileGC.DeleteFileObjects(ctx, deleted)
 		}
 		return nil
+	}
+	if clipGC != nil {
+		_ = clipGC.DeleteClipboardObjects(ctx, clipEntry)
 	}
 	return clip.HardDelete(ctx, clipEntry.ID, userID)
 }
