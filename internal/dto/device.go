@@ -35,18 +35,24 @@ type PairConfirmRequest struct {
 	PublicKey string `json:"public_key" validate:"required"` // base64-encoded X25519 key
 }
 
+// DeviceRenameRequest updates the user-visible name of a device.
+type DeviceRenameRequest struct {
+	Name string `json:"name" validate:"required,min=1,max=64"`
+}
+
 // ── Responses ─────────────────────────────────────────────────────────────────
 
 // DeviceResponse is the public representation of a device.
 type DeviceResponse struct {
-	ID                string     `json:"id"`
-	Name              string     `json:"name"`
-	Platform          string     `json:"platform"`
-	Fingerprint       string     `json:"fingerprint"` // first 16 chars of SHA-256(public_key)
-	Trusted           bool       `json:"trusted"`
-	LastSeenAt        *time.Time `json:"last_seen_at,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	IsCurrent         bool       `json:"is_current"` // true when it matches the requesting device
+	ID           string     `json:"id"`
+	Name         string     `json:"name"`
+	Platform     string     `json:"platform"`
+	Trusted      bool       `json:"trusted"`
+	TrustedUntil *time.Time `json:"trusted_until,omitempty"`
+	Online       bool       `json:"online"`
+	LastSeenAt   *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	IsCurrent    bool       `json:"is_current"`
 }
 
 // DeviceListResponse wraps the list of devices for a user.

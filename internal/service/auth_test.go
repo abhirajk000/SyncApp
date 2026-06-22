@@ -116,6 +116,15 @@ func (s *stubAuthDeviceStore) UpdateLastSeen(_ context.Context, id uuid.UUID) er
 	return nil
 }
 
+func (s *stubAuthDeviceStore) UpdateName(_ context.Context, id uuid.UUID, name string) error {
+	d, ok := s.devices[id]
+	if !ok {
+		return repository.ErrNotFound
+	}
+	d.Name = name
+	return nil
+}
+
 type stubAuditStore struct{}
 
 func (s *stubAuditStore) Log(_ context.Context, _ *repository.AuditEvent) error { return nil }

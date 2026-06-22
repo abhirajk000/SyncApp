@@ -171,11 +171,24 @@ func (r *DeviceRepository) UpdateTrust(ctx context.Context, id uuid.UUID, truste
 }
 
 // UpdateLastSeen bumps last_seen_at to now() without touching any other column.
-// Called on every authenticated request; failures are soft-logged, never fatal.
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, id uuid.UUID) error {
 	const q = `UPDATE devices SET last_seen_at = now() WHERE id = $1 AND revoked_at IS NULL`
 	_, err := r.pool.Exec(ctx, q, id)
 	return mapError(err)
+}
+
+// UpdateName sets the user-visible device label.
+func (r *DeviceRepository) UpdateName(ctx context.Context, id uuid.UUID, name string) error {
+	const q = `UPDATE devices SET name = $2 WHERE id = $1 AND revoked_at IS NULL`
+
+	tag, err := r.pool.Exec(ctx, q, id, name)
+	if err != nil {
+		return mapError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // CountActiveByUserID returns the number of non-revoked devices for userID.

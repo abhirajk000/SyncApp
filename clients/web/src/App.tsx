@@ -25,6 +25,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SendPage } from "./pages/SendPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { NetworkPage } from "./pages/NetworkPage";
+import { DevicesPage } from "./pages/DevicesPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
 import { Check } from "lucide-react";
@@ -49,7 +50,7 @@ function AppShell() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
   const [nav, setNav] = useState<NavId>("clipboard");
-  const [settingsView, setSettingsView] = useState<"main" | "network">("main");
+  const [settingsView, setSettingsView] = useState<"main" | "network" | "devices">("main");
   const [liveConnected, setLiveConnected] = useState(false);
   const showConnected = useStableConnection(liveConnected);
   const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
@@ -190,10 +191,14 @@ function AppShell() {
         if (settingsView === "network") {
           return <NetworkPage onBack={() => setSettingsView("main")} />;
         }
+        if (settingsView === "devices") {
+          return <DevicesPage onBack={() => setSettingsView("main")} />;
+        }
         return (
           <SettingsPage
             onLogout={logout}
             onOpenNetwork={() => setSettingsView("network")}
+            onOpenDevices={() => setSettingsView("devices")}
           />
         );
     }

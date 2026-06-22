@@ -8,6 +8,7 @@ export function getServerUrl(): string {
 
 const KEYS = {
   deviceId: "syncbridge.deviceId",
+  deviceName: "syncbridge.deviceName",
   accessToken: "syncbridge.accessToken",
   refreshToken: "syncbridge.refreshToken",
 } as const;
@@ -158,11 +159,14 @@ async function apiRequest<T>(
   return res.json() as Promise<T>;
 }
 
-export async function unlock(pin: string): Promise<AuthResponse> {
+export async function unlock(pin: string, deviceName?: string): Promise<AuthResponse> {
+  const name = (deviceName ?? localStorage.getItem(KEYS.deviceName) ?? defaultWebDeviceName()).trim();
+  if (name) localStorage.setItem(KEYS.deviceName, name);
+
   const body = {
     pin,
     device_id: ensureDeviceId(),
-    device_name: "Web Browser",
+    device_name: name || "Web Browser",
     platform: "web",
   };
 
@@ -174,6 +178,16 @@ export async function unlock(pin: string): Promise<AuthResponse> {
   writeAuth(KEYS.accessToken, data.access_token);
   writeAuth(KEYS.refreshToken, data.refresh_token);
   return data;
+}
+
+function defaultWebDeviceName(): string {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return "iPhone";
+  if (/iPad/.test(ua)) return "iPad";
+  if (/Android/.test(ua)) return "Android Phone";
+  if (/Macintosh/.test(ua)) return "Mac";
+  if (/Windows/.test(ua)) return "Windows PC";
+  return "Web Browser";
 }
 
 export async function fetchClipboardHistory(): Promise<ClipboardHistoryResponse> {
@@ -304,8 +318,9 @@ export interface DeviceEntry {
   id: string;
   name: string;
   platform: string;
-  fingerprint: string;
   trusted: boolean;
+  trusted_until?: string | null;
+  online?: boolean;
   last_seen_at?: string;
   created_at: string;
   is_current: boolean;
@@ -316,6 +331,22 @@ export interface DeviceListResponse {
   total: number;
 }
 
-export async function fetchDevices(): Promise<DeviceListResponse> {
-  return apiRequest<DeviceListResponse>("/api/v1/devices");
+export async function fetchDevices(trustedOnly = false): Promise<DeviceListResponse> {
+  const q = trustedOnly ? "?trusted=true" : "";
+  return apiRequest<DeviceListResponse>(`/api/v1/devices${q}`);
+}
+
+export async function renameDevice(id: string, name: string): Promise<DeviceEntry> {
+  return apiRequest<DeviceEntry>(`/api/v1/devices/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function revokeDevice(id: string): Promise<void> {
+  await apiRequest<void>(`/api/v1/devices/${id}`, { method: "DELETE" });
+}
+
+export async function trustDevice(id: string): Promise<void> {
+  await apiRequest<void>(`/api/v1/devices/${id}/trust`, { method: "POST" });
 }

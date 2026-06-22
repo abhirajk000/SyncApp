@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -20,18 +22,24 @@ type deviceService interface {
 	Get(ctx context.Context, userID, deviceID uuid.UUID) (*repository.Device, error)
 	Revoke(ctx context.Context, userID, deviceID uuid.UUID) error
 	Trust(ctx context.Context, userID, deviceID uuid.UUID) error
+	Rename(ctx context.Context, userID, deviceID uuid.UUID, name string) error
 	InitiatePairing(ctx context.Context, initiatorDeviceID, userID uuid.UUID) (*service.PairInitiateResult, error)
 	ConfirmPairing(ctx context.Context, in service.PairConfirmInput) (*service.AuthResult, error)
 }
 
+type devicePresence interface {
+	IsDeviceOnline(deviceID uuid.UUID) bool
+}
+
 // DeviceHandler handles HTTP requests for device management endpoints.
 type DeviceHandler struct {
-	svc deviceService
+	svc      deviceService
+	presence devicePresence
 }
 
 // NewDeviceHandler constructs a DeviceHandler.
-func NewDeviceHandler(svc deviceService) *DeviceHandler {
-	return &DeviceHandler{svc: svc}
+func NewDeviceHandler(svc deviceService, presence devicePresence) *DeviceHandler {
+	return &DeviceHandler{svc: svc, presence: presence}
 }
 
 // List handles GET /api/v1/devices.
@@ -40,6 +48,7 @@ func NewDeviceHandler(svc deviceService) *DeviceHandler {
 //	@Tags        devices
 //	@Security    BearerAuth
 //	@Produce     json
+//	@Param       trusted query bool false "Only trusted devices active recently"
 //	@Success     200 {object} dto.DeviceListResponse
 //	@Failure     401 {object} dto.ErrorResponse
 //	@Router      /api/v1/devices [get]
@@ -49,19 +58,25 @@ func (h *DeviceHandler) List(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
 	currentDeviceID, _ := DeviceIDFromCtx(c)
+	trustedOnly := c.Query("trusted") == "1" || strings.EqualFold(c.Query("trusted"), "true")
 
 	devices, err := h.svc.List(c.UserContext(), userID)
 	if err != nil {
 		return err
 	}
 
+	now := time.Now()
 	resp := dto.DeviceListResponse{
 		Devices: make([]dto.DeviceResponse, 0, len(devices)),
-		Total:   len(devices),
+		Total:   0,
 	}
 	for _, d := range devices {
-		resp.Devices = append(resp.Devices, toDeviceResponse(d, currentDeviceID))
+		if trustedOnly && !isTrustedActiveDevice(d, now) {
+			continue
+		}
+		resp.Devices = append(resp.Devices, toDeviceResponse(d, currentDeviceID, h.presence))
 	}
+	resp.Total = len(resp.Devices)
 	return c.JSON(resp)
 }
 
@@ -98,7 +113,7 @@ func (h *DeviceHandler) Get(c *fiber.Ctx) error {
 		return err
 	}
 
-	return c.JSON(toDeviceResponse(device, currentDeviceID))
+	return c.JSON(toDeviceResponse(device, currentDeviceID, h.presence))
 }
 
 // Register handles POST /api/v1/devices.
@@ -140,7 +155,47 @@ func (h *DeviceHandler) Register(c *fiber.Ctx) error {
 		return err
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(toDeviceResponse(device, uuid.Nil))
+	return c.Status(fiber.StatusCreated).JSON(toDeviceResponse(device, uuid.Nil, h.presence))
+}
+
+// Rename handles PATCH /api/v1/devices/:id.
+func (h *DeviceHandler) Rename(c *fiber.Ctx) error {
+	userID, ok := UserIDFromCtx(c)
+	if !ok {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	currentDeviceID, _ := DeviceIDFromCtx(c)
+
+	deviceID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid device id")
+	}
+
+	var req dto.DeviceRenameRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "name is required")
+	}
+
+	if err := h.svc.Rename(c.UserContext(), userID, deviceID, name); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			return fiber.NewError(fiber.StatusNotFound, "device not found")
+		case errors.Is(err, service.ErrNotOwner):
+			return fiber.NewError(fiber.StatusForbidden, "access denied")
+		}
+		return err
+	}
+
+	device, err := h.svc.Get(c.UserContext(), userID, deviceID)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(toDeviceResponse(device, currentDeviceID, h.presence))
 }
 
 // Revoke handles DELETE /api/v1/devices/:id.
@@ -285,14 +340,13 @@ func (h *DeviceHandler) ConfirmPairing(c *fiber.Ctx) error {
 		return err
 	}
 
-	// We need to return the newly created device details.
-	// Fetch it from the service via the Get method if we had access, but for
-	// the confirm response we reconstruct from what we know.
 	return c.Status(fiber.StatusCreated).JSON(dto.PairConfirmResponse{
 		AuthResponse: toAuthResponse(result),
 		Device: dto.DeviceResponse{
 			ID:        result.DeviceID.String(),
+			Name:      req.Name,
 			Platform:  req.Platform,
+			Trusted:   true,
 			IsCurrent: true,
 		},
 	})
@@ -300,16 +354,35 @@ func (h *DeviceHandler) ConfirmPairing(c *fiber.Ctx) error {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func toDeviceResponse(d *repository.Device, currentDeviceID uuid.UUID) dto.DeviceResponse {
-	resp := dto.DeviceResponse{
-		ID:          d.ID.String(),
-		Name:        d.Name,
-		Platform:    d.Platform,
-		Fingerprint: d.DeviceFingerprint,
-		Trusted:     d.Trusted,
-		LastSeenAt:  d.LastSeenAt,
-		CreatedAt:   d.CreatedAt,
-		IsCurrent:   d.ID == currentDeviceID,
+const trustedRecentWindow = 30 * 24 * time.Hour
+
+func isTrustedActiveDevice(d *repository.Device, now time.Time) bool {
+	if !d.Trusted {
+		return false
 	}
-	return resp
+	if d.TrustedUntil != nil && d.TrustedUntil.After(now) {
+		return true
+	}
+	if d.LastSeenAt != nil && now.Sub(*d.LastSeenAt) <= trustedRecentWindow {
+		return true
+	}
+	return false
+}
+
+func toDeviceResponse(d *repository.Device, currentDeviceID uuid.UUID, presence devicePresence) dto.DeviceResponse {
+	online := false
+	if presence != nil {
+		online = presence.IsDeviceOnline(d.ID)
+	}
+	return dto.DeviceResponse{
+		ID:           d.ID.String(),
+		Name:         d.Name,
+		Platform:     d.Platform,
+		Trusted:      d.Trusted,
+		TrustedUntil: d.TrustedUntil,
+		Online:       online,
+		LastSeenAt:   d.LastSeenAt,
+		CreatedAt:    d.CreatedAt,
+		IsCurrent:    d.ID == currentDeviceID,
+	}
 }

@@ -10,6 +10,7 @@ import {
   pinFile,
 } from "../api";
 import { AppEmptyState, AppSkeleton } from "../components";
+import { TrustedDevicesBar } from "../components/TrustedDevicesBar";
 import { ClipboardImageThumb } from "../components/ClipboardImageThumb";
 import { FileGridCard } from "../components/FileGridCard";
 import { ItemDeleteButton } from "../components/ItemDeleteButton";
@@ -304,6 +305,7 @@ export function HomePage() {
   if (isEmpty) {
     return (
       <div className="ds-content-wide ds-home">
+        <TrustedDevicesBar />
         <AppEmptyState
           icon={<IconText size={22} />}
           title="Nothing synced yet"
@@ -315,6 +317,7 @@ export function HomePage() {
 
   return (
     <div className="ds-content-wide ds-home">
+      <TrustedDevicesBar />
       <div className="ds-home-desktop">
         <div className="ds-home-split">
           <section className="ds-home-pane ds-home-pane--text" aria-label="Text">

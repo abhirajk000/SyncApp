@@ -86,7 +86,7 @@ function enrichPeers(peers: LocalPeer[], devices: DeviceEntry[]): EnrichedPeer[]
       addrs: p.addrs,
       port: p.port,
       updated_at: p.updated_at,
-      name: dev?.name ?? `${p.device_id.slice(0, 8)}…`,
+      name: dev?.name ?? "Unknown device",
       platform: dev?.platform ?? "unknown",
       connectionType: "direct_lan" as TransferRoute,
       onLan: true,

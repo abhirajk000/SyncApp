@@ -78,6 +78,25 @@ func (s *stubDeviceStore) UpdateLastSeen(_ context.Context, id uuid.UUID) error 
 	return nil
 }
 
+func (s *stubDeviceStore) UpdateName(_ context.Context, id uuid.UUID, name string) error {
+	d, ok := s.devices[id]
+	if !ok || d.RevokedAt != nil {
+		return repository.ErrNotFound
+	}
+	d.Name = name
+	return nil
+}
+
+func (s *stubDeviceStore) UpdateTrustedUntil(_ context.Context, id uuid.UUID, until time.Time) error {
+	d, ok := s.devices[id]
+	if !ok || d.RevokedAt != nil {
+		return repository.ErrNotFound
+	}
+	d.Trusted = true
+	d.TrustedUntil = &until
+	return nil
+}
+
 type stubDeviceSessionStore struct {
 	revokedDevices []uuid.UUID
 }
@@ -131,7 +150,7 @@ func newTestDeviceService() (*service.DeviceService, *stubDeviceStore, *stubDevi
 	audit := &stubAuditStore{}
 	tokens := auth.NewTokenService("test-secret-32-bytes-long-enough!!", 15*time.Minute, 30*24*time.Hour)
 
-	svc := service.NewDeviceService(devices, sessions, pairing, audit, tokens, 5*time.Minute)
+	svc := service.NewDeviceService(devices, sessions, pairing, audit, tokens, 5*time.Minute, 7*24*time.Hour)
 	_ = audit
 	return svc, devices, sessions, pairing
 }

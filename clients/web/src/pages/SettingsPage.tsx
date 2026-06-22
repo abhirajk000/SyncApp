@@ -1,18 +1,34 @@
-import { AppButton, AppCard, AppIcon, AppSection } from "../components";
-import { IconLogout } from "../components/Icons";
+import { AppButton, AppCard, AppSection } from "../components";
+import { IconDevices, IconLogout } from "../components/Icons";
 import { useTheme } from "../design/ThemeProvider";
 import { ChevronRight, Wifi } from "lucide-react";
 
 interface Props {
   onLogout: () => void;
   onOpenNetwork: () => void;
+  onOpenDevices: () => void;
 }
 
-export function SettingsPage({ onLogout, onOpenNetwork }: Props) {
+export function SettingsPage({ onLogout, onOpenNetwork, onOpenDevices }: Props) {
   const { theme, setTheme } = useTheme();
 
   return (
     <div className="ds-content-narrow">
+      <AppSection title="Devices">
+        <AppCard>
+          <button type="button" className="ds-settings-link" onClick={onOpenDevices}>
+            <span className="ds-settings-link__icon">
+              <IconDevices size={22} strokeWidth={1.75} />
+            </span>
+            <span className="ds-settings-link__body">
+              <strong>Trusted devices</strong>
+              <span className="ds-subtitle">Rename, trust, or remove devices</span>
+            </span>
+            <ChevronRight size={20} className="ds-settings-link__chevron" strokeWidth={2} />
+          </button>
+        </AppCard>
+      </AppSection>
+
       <AppSection title="Network">
         <AppCard>
           <button type="button" className="ds-settings-link" onClick={onOpenNetwork}>
@@ -48,7 +64,6 @@ export function SettingsPage({ onLogout, onOpenNetwork }: Props) {
       <AppSection title="About">
         <AppCard>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-3)" }}>
-            <AppIcon size="sm" alt="" />
             <strong>SyncBridge</strong>
           </div>
           <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>

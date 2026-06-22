@@ -30,6 +30,8 @@ type deviceStore interface {
 	FindByUserID(ctx context.Context, userID uuid.UUID) ([]*repository.Device, error)
 	Revoke(ctx context.Context, id uuid.UUID) error
 	UpdateTrust(ctx context.Context, id uuid.UUID, trusted bool) error
+	UpdateTrustedUntil(ctx context.Context, id uuid.UUID, until time.Time) error
+	UpdateName(ctx context.Context, id uuid.UUID, name string) error
 	UpdateLastSeen(ctx context.Context, id uuid.UUID) error
 }
 
@@ -58,6 +60,7 @@ type DeviceService struct {
 	tokens   *auth.TokenService
 	// pairingTTL is the lifetime of a QR pairing code (default 5 min).
 	pairingTTL time.Duration
+	trustTTL   time.Duration
 }
 
 // NewDeviceService constructs a DeviceService.
@@ -68,9 +71,13 @@ func NewDeviceService(
 	audit deviceAuditStore,
 	tokens *auth.TokenService,
 	pairingTTL time.Duration,
+	trustTTL time.Duration,
 ) *DeviceService {
 	if pairingTTL == 0 {
 		pairingTTL = 5 * time.Minute
+	}
+	if trustTTL == 0 {
+		trustTTL = 7 * 24 * time.Hour
 	}
 	return &DeviceService{
 		devices:    devices,
@@ -79,6 +86,7 @@ func NewDeviceService(
 		audit:      audit,
 		tokens:     tokens,
 		pairingTTL: pairingTTL,
+		trustTTL:   trustTTL,
 	}
 }
 
@@ -183,7 +191,7 @@ func (s *DeviceService) Revoke(ctx context.Context, userID, deviceID uuid.UUID) 
 	return nil
 }
 
-// Trust marks a device as trusted.
+// Trust marks a device as trusted and extends its PIN-free trust window.
 func (s *DeviceService) Trust(ctx context.Context, userID, deviceID uuid.UUID) error {
 	d, err := s.devices.FindActiveByID(ctx, deviceID)
 	if err != nil {
@@ -193,11 +201,32 @@ func (s *DeviceService) Trust(ctx context.Context, userID, deviceID uuid.UUID) e
 		return ErrNotOwner
 	}
 
-	if err := s.devices.UpdateTrust(ctx, deviceID, true); err != nil {
+	trustedUntil := time.Now().Add(s.trustTTL)
+	if err := s.devices.UpdateTrustedUntil(ctx, deviceID, trustedUntil); err != nil {
 		return fmt.Errorf("trust device: %w", err)
 	}
 
 	s.logAudit(ctx, &userID, &deviceID, repository.EventDeviceTrusted, nil)
+
+	return nil
+}
+
+// Rename updates the user-visible device name.
+func (s *DeviceService) Rename(ctx context.Context, userID, deviceID uuid.UUID, name string) error {
+	d, err := s.devices.FindActiveByID(ctx, deviceID)
+	if err != nil {
+		return fmt.Errorf("find device: %w", err)
+	}
+	if d.UserID != userID {
+		return ErrNotOwner
+	}
+
+	if err := s.devices.UpdateName(ctx, deviceID, name); err != nil {
+		return fmt.Errorf("rename device: %w", err)
+	}
+
+	s.logAudit(ctx, &userID, &deviceID, repository.EventDeviceRegistered,
+		map[string]any{"action": "rename", "name": name})
 
 	return nil
 }

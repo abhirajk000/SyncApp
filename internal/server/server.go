@@ -175,7 +175,7 @@ func (s *Server) registerRoutes() {
 	)
 	deviceSvc := service.NewDeviceService(
 		deviceRepo, sessionRepo, pairingRepo, auditRepo,
-		tokenSvc, 5*time.Minute,
+		tokenSvc, 5*time.Minute, trustTTL,
 	)
 	clipboardSvc := service.NewClipboardService(
 		clipboardRepo, userSettingsRepo,
@@ -219,6 +219,7 @@ func (s *Server) registerRoutes() {
 
 	// ── Auth middleware ───────────────────────────────────────────────────────
 	requireAuth := middleware.RequireAuth(tokenSvc)
+	bumpLastSeen := middleware.BumpLastSeen(deviceRepo)
 
 	// ── Infrastructure health (no auth) ──────────────────────────────────────
 	healthH := handler.NewHealthHandler(s.db)
@@ -234,14 +235,16 @@ func (s *Server) registerRoutes() {
 	authGroup := v1.Group("/auth")
 	authGroup.Use(middleware.AuthRateLimit(s.cfg))
 	authGroup.Post("/unlock",  authH.Unlock)
-	authGroup.Get("/status",   requireAuth, authH.Status)
-	authGroup.Post("/logout",  requireAuth, authH.Logout)
+	authGroup.Get("/status",   requireAuth, bumpLastSeen, authH.Status)
+	authGroup.Post("/logout",  requireAuth, bumpLastSeen, authH.Logout)
 
 	// Devices
-	deviceH := handler.NewDeviceHandler(deviceSvc)
-	devicesGroup := v1.Group("/devices", requireAuth)
+	presenceQ := ws.NewQuerier(s.hub)
+	deviceH := handler.NewDeviceHandler(deviceSvc, presenceQ)
+	devicesGroup := v1.Group("/devices", requireAuth, bumpLastSeen)
 	devicesGroup.Get("/",               deviceH.List)
 	devicesGroup.Get("/:id",            deviceH.Get)
+	devicesGroup.Patch("/:id",          deviceH.Rename)
 	devicesGroup.Delete("/:id",         deviceH.Revoke)
 	devicesGroup.Post("/:id/trust",     deviceH.Trust)
 	devicesGroup.Post("/pair/initiate", deviceH.InitiatePairing)
@@ -264,7 +267,7 @@ func (s *Server) registerRoutes() {
 
 	// ── Clipboard (Phase 5) ──────────────────────────────────────────────────
 	clipboardH := handler.NewClipboardHandler(clipboardSvc)
-	clipGroup := v1.Group("/clipboard", requireAuth)
+	clipGroup := v1.Group("/clipboard", requireAuth, bumpLastSeen)
 	clipGroup.Post("/",           clipboardH.Sync)
 	clipGroup.Get("/current",     clipboardH.GetCurrent)
 	clipGroup.Get("/",            clipboardH.GetHistory)
@@ -280,7 +283,7 @@ func (s *Server) registerRoutes() {
 	v1.Get("/rtc/config", requireAuth, signalH.GetRTCConfig)
 
 	// Signaling (all require auth)
-	signalGroup := v1.Group("/signal", requireAuth)
+	signalGroup := v1.Group("/signal", requireAuth, bumpLastSeen)
 	signalGroup.Post("/",                  signalH.CreateOffer)
 	signalGroup.Get("/:id",               signalH.GetSession)
 	signalGroup.Post("/:id/answer",       signalH.SubmitAnswer)
@@ -288,7 +291,7 @@ func (s *Server) registerRoutes() {
 	signalGroup.Post("/:id/connected",    signalH.MarkConnected)
 
 	// Local peer discovery (all require auth)
-	localGroup := v1.Group("/local", requireAuth)
+	localGroup := v1.Group("/local", requireAuth, bumpLastSeen)
 	localGroup.Post("/advertise",    signalH.AdvertiseLocalAddrs)
 	localGroup.Get("/peers",         signalH.GetLocalPeers)
 	localGroup.Delete("/advertise",  signalH.RemoveLocalAddr)
@@ -311,7 +314,7 @@ func (s *Server) registerRoutes() {
 	//   webrtc — P2P DataChannel transfer; server still stores a backup copy for
 	//            offline devices (signaled via Phase 6 WebRTC signaling).
 	fileH := handler.NewFileHandler(fileSvc)
-	filesGroup := v1.Group("/files", requireAuth)
+	filesGroup := v1.Group("/files", requireAuth, bumpLastSeen)
 	filesGroup.Post("/init",               fileH.InitUpload)
 	filesGroup.Get("/",                    fileH.ListFiles)
 	filesGroup.Get("/:id",                 fileH.GetFile)

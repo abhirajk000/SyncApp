@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,6 +43,7 @@ type authDeviceStore interface {
 	FindActiveByID(ctx context.Context, id uuid.UUID) (*repository.Device, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID) ([]*repository.Device, error)
 	UpdateTrustedUntil(ctx context.Context, id uuid.UUID, until time.Time) error
+	UpdateName(ctx context.Context, id uuid.UUID, name string) error
 	UpdateLastSeen(ctx context.Context, id uuid.UUID) error
 }
 
@@ -135,6 +137,12 @@ func (s *AuthService) Unlock(ctx context.Context, in UnlockInput) (*AuthResult, 
 		}
 	} else if device.UserID != gs.OwnerUserID {
 		return nil, ErrDeviceRevoked
+	} else if name := strings.TrimSpace(in.DeviceName); name != "" && name != device.Name {
+		if err := s.devices.UpdateName(ctx, device.ID, name); err != nil {
+			log.Warn().Err(err).Str("device_id", device.ID.String()).Msg("update device name failed")
+		} else {
+			device.Name = name
+		}
 	}
 
 	trustedUntil := time.Now().Add(s.trustTTL)
