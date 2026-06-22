@@ -26,7 +26,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupPopover()
         setupEventMonitor()
 
-        // Start background services if already authenticated.
         Task { @MainActor in
             self.appState.onAppear()
         }
@@ -42,32 +41,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "SyncBridge")
-            button.image?.isTemplate = true   // respects dark/light mode automatically
+            button.image = loadMenuBarIcon()
+            button.image?.isTemplate = false
             button.action = #selector(togglePopover)
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-
-        // Observe sync status to update the icon.
-        Task { @MainActor [weak self] in
-            for await status in self?.appState.$syncStatus.values ?? AsyncStream { _ in } {
-                self?.updateStatusIcon(status)
-            }
-        }
     }
 
-    private func updateStatusIcon(_ status: SyncStatus) {
-        guard let button = statusItem?.button else { return }
-        let name: String
-        switch status {
-        case .disconnected:         name = "arrow.triangle.2.circlepath"
-        case .connecting:           name = "arrow.clockwise"
-        case .connected, .syncing:  name = "checkmark.circle"
-        case .error:                name = "exclamationmark.circle"
+    private func loadMenuBarIcon() -> NSImage? {
+        if let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.size = NSSize(width: 18, height: 18)
+            return image
         }
-        button.image = NSImage(systemSymbolName: name, accessibilityDescription: "SyncBridge")
-        button.image?.isTemplate = true
+        return NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "SyncBridge")
     }
 
     // MARK: – Popover

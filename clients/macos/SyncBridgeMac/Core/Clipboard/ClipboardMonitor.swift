@@ -2,9 +2,8 @@
 // Watches NSPasteboard for changes and syncs new content to the server.
 //
 // Design:
-//   • Polls `NSPasteboard.general.changeCount` every 500 ms (lowest power
-//     approach on macOS; NSPasteboardDidChangeNotification is not available
-//     system-wide).
+//   • Polls `NSPasteboard.general.changeCount` every 100 ms — event-driven via
+//     changeCount (no full scheduled sync; lowest-latency approach on macOS).
 //   • SHA-256 deduplication: only syncs if the content hash changed since the
 //     last successful sync.
 //   • Echo suppression: when the monitor writes to the pasteboard (in response
@@ -48,7 +47,7 @@ final class ClipboardMonitor {
     func start() {
         stop()
         let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now() + 0.5, repeating: 0.5)
+        t.schedule(deadline: .now() + 0.1, repeating: 0.1)
         t.setEventHandler { [weak self] in self?.poll() }
         t.resume()
         timer = t

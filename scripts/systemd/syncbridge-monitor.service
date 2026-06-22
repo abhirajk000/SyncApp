@@ -1,0 +1,19 @@
+[Unit]
+Description=SyncBridge health monitor (auto-recover)
+After=network-online.target syncbridge-boot.service syncbridge.service
+Wants=network-online.target syncbridge.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/syncapp
+Environment=SYNCAPP_ROOT=/root/syncapp
+Environment=SYNCAPP_ENV=vps
+ExecStart=/bin/bash /root/syncapp/scripts/monitor/sync-watch-loop.sh
+Restart=always
+RestartSec=15
+StandardOutput=append:/root/syncapp/logs/sync-watch.log
+StandardError=append:/root/syncapp/logs/sync-watch.log
+
+[Install]
+WantedBy=multi-user.target

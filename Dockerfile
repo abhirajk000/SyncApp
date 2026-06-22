@@ -35,7 +35,7 @@ FROM alpine:3.21
 
 # ca-certificates: required for HTTPS calls to external services (TURN, APNs, etc.)
 # tzdata: correct timezone handling in PostgreSQL TIMESTAMPTZ comparisons
-RUN apk add --no-cache ca-certificates tzdata wget && \
+RUN apk add --no-cache ca-certificates tzdata wget su-exec && \
     addgroup -g 1001 syncbridge && \
     adduser  -u 1001 -G syncbridge -D -s /sbin/nologin syncbridge
 
@@ -43,10 +43,9 @@ WORKDIR /app
 
 COPY --from=builder /app/api        ./api
 COPY --from=builder /build/migrations ./migrations
+COPY docker-entrypoint.sh           /docker-entrypoint.sh
 
-RUN chown -R syncbridge:syncbridge /app
-
-USER syncbridge:syncbridge
+RUN chown -R syncbridge:syncbridge /app && chmod +x /docker-entrypoint.sh
 
 EXPOSE 8080
 
@@ -58,4 +57,4 @@ HEALTHCHECK \
     --retries=3 \
     CMD wget -qO- http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["./api"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

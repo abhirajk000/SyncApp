@@ -61,23 +61,17 @@ struct ClipboardHistoryView: View {
     }
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 4)
+        AppSectionHeader(title: title)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "doc.on.clipboard")
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-            Text(searchText.isEmpty ? "No clipboard history" : "No results")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        AppEmptyState(
+            icon: searchText.isEmpty ? "doc.on.clipboard" : "magnifyingglass",
+            title: searchText.isEmpty ? "No clipboard history" : "No results",
+            description: searchText.isEmpty
+                ? "Copy on any device — items appear here instantly."
+                : "Try a different search term."
+        )
     }
 }
 

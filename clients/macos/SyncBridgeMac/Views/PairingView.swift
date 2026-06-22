@@ -1,6 +1,4 @@
-// PairingView.swift
-// Displays a QR code that other devices can scan to pair with this account.
-// Uses CoreImage to generate the QR code — no third-party libraries.
+// PairingView.swift — DesignSystem QR pairing sheet
 
 import SwiftUI
 import CoreImage.CIFilterBuiltins
@@ -11,56 +9,61 @@ struct PairingView: View {
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Space.xl) {
             Text("Pair a New Device")
-                .font(.headline)
+                .font(DS.Font.headline())
 
             Text("Scan this QR code from the SyncBridge app on your other device.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(DS.Font.caption())
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
 
-            if let code = appState.pairingCode {
-                qrCodeImage(for: code)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
+            AppCard {
+                if let code = appState.pairingCode {
+                    VStack(spacing: DS.Space.lg) {
+                        qrCodeImage(for: code)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 200, height: 200)
+                            .padding(DS.Space.md)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+
+                        Text("Code: \(code)")
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+
+                        if let expiresAt = appState.pairingExpiresAt {
+                            Text("Expires at \(expiresAt)")
+                                .font(DS.Font.caption())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    VStack(spacing: DS.Space.md) {
+                        ProgressView()
+                        Text("Generating code…")
+                            .font(DS.Font.caption())
+                            .foregroundStyle(.secondary)
+                    }
                     .frame(width: 200, height: 200)
-                    .padding(12)
-                    .background(Color.white)
-                    .cornerRadius(12)
-                    .shadow(radius: 4)
-
-                Text("Code: **\(code)**")
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-
-                if let expiresAt = appState.pairingExpiresAt {
-                    Text("Expires at \(expiresAt)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
-            } else {
-                ProgressView("Generating code…")
-                    .frame(width: 200, height: 200)
             }
 
-            HStack {
-                Button("Refresh") {
+            HStack(spacing: DS.Space.sm) {
+                AppButton(title: "Refresh", variant: .ghost) {
                     Task { await appState.initiatePairing() }
                 }
-                .buttonStyle(.bordered)
-
-                Button("Done") {
+                .frame(maxWidth: .infinity)
+                AppButton(title: "Done") {
                     appState.isPairingActive = false
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return)
+                .frame(maxWidth: .infinity)
             }
         }
-        .padding(24)
+        .padding(DS.Space.xl)
         .frame(width: 320)
         .task {
             if appState.pairingCode == nil {
@@ -68,8 +71,6 @@ struct PairingView: View {
             }
         }
     }
-
-    // MARK: – QR code generation
 
     private func qrCodeImage(for string: String) -> Image {
         let context = CIContext()

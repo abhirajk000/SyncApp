@@ -1,0 +1,19 @@
+[Unit]
+Description=SyncBridge Docker stack (web :2000, API :2001)
+After=docker.service network-online.target postgresql.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=/root/syncapp
+Environment=SYNCAPP_ROOT=/root/syncapp
+Environment=SYNCAPP_ENV=vps
+ExecStart=/usr/bin/docker compose -f /root/syncapp/docker-compose.vps.yml -p syncbridge up -d
+ExecStop=/usr/bin/docker compose -f /root/syncapp/docker-compose.vps.yml -p syncbridge down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

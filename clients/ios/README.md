@@ -21,7 +21,10 @@ Minimal SwiftUI scaffold for Phase D+E. Clipboard monitor and file transfer are 
 SyncBridgeIOSApp.swift   ← @main entry
 LoginView.swift
 AppState.swift
+Assets.xcassets/         ← AppIcon + AppLogo (from clients/ios/Assets.xcassets)
 ```
+
+In Xcode → **General** → **App Icons and Launch Screen**, set **App Icon** to `AppIcon`.
 
 Delete auto-generated `ContentView.swift` if unused.
 

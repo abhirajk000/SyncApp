@@ -1,0 +1,17 @@
+[Unit]
+Description=SyncBridge VPS boot warmup
+After=network-online.target docker.service postgresql.service syncbridge.service
+Before=syncbridge-monitor.service
+Wants=network-online.target syncbridge.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/syncapp
+Environment=SYNCAPP_ROOT=/root/syncapp
+Environment=SYNCAPP_ENV=vps
+ExecStart=/bin/bash /root/syncapp/scripts/monitor/sync-boot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

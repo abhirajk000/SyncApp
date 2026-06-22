@@ -1,0 +1,16 @@
+# Production overrides — use: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  api:
+    restart: always
+    ports: !override
+      - "127.0.0.1:8081:8080"
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: production
+      LOG_FORMAT: json
+      CORS_ORIGINS: "https://sync.abhiraj.xyz,https://api.sync.abhiraj.xyz"
+      JWT_SECRET: ${JWT_SECRET}
+      MDNS_ENABLED: "false"
+  postgres:
+    ports: !override []

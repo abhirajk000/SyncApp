@@ -1,47 +1,95 @@
 // SyncBridgeIOSApp.swift
-// SwiftUI app entry — minimal Phase D+E scaffold.
+// SwiftUI app — fast launch, latest clipboard on open, WS while active.
 
 import SwiftUI
 
 @main
 struct SyncBridgeIOSApp: App {
     @StateObject private var appState = AppState()
+    @StateObject private var wsClient = WSClient()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            if appState.isAuthenticated {
-                ContentPlaceholderView()
-                    .environmentObject(appState)
-            } else {
-                LoginView()
-                    .environmentObject(appState)
+            ZStack {
+                if appState.isAuthenticated {
+                    MainView()
+                        .environmentObject(appState)
+                        .environmentObject(wsClient)
+                } else {
+                    LoginView()
+                        .environmentObject(appState)
+                }
+
+                if let popup = appState.latestClipboardPopup {
+                    LatestClipboardView(
+                        content: popup.content,
+                        createdAt: popup.createdAt,
+                        onDismiss: { appState.latestClipboardPopup = nil }
+                    )
+                }
+            }
+            .onChange(of: appState.isAuthenticated) { _, authed in
+                if authed {
+                    Task { await appState.loadLatestClipboard() }
+                    connectWS()
+                } else {
+                    wsClient.disconnect()
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active, appState.isAuthenticated {
+                    Task { await appState.loadLatestClipboard() }
+                    connectWS()
+                } else if phase == .background {
+                    wsClient.disconnect()
+                }
+            }
+            .onAppear {
+                wsClient.onClipboardNew = { entry in
+                    appState.latestClipboardPopup = entry
+                    UIPasteboard.general.string = entry.content
+                }
+                if appState.isAuthenticated {
+                    Task { await appState.loadLatestClipboard() }
+                    connectWS()
+                }
             }
         }
     }
+
+    private func connectWS() {
+        guard let token = appState.accessToken else { return }
+        wsClient.connect(accessToken: token, serverURL: appState.serverURL)
+    }
 }
 
-/// Placeholder main view — replace with clipboard/files tabs in Phase D+E.
-struct ContentPlaceholderView: View {
+struct MainView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(.green)
-                Text("Unlocked")
-                    .font(.headline)
-                Text("Add Clipboard and Files views here.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button("Log out") {
-                    appState.logout()
+            List {
+                Section("Latest") {
+                    if let latest = appState.latestClipboardPopup {
+                        Text(latest.content)
+                            .lineLimit(4)
+                    } else {
+                        Text("Open app to fetch latest clipboard")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .buttonStyle(.bordered)
+                Section {
+                    Button("Log out", role: .destructive) {
+                        appState.logout()
+                    }
+                }
             }
-            .padding()
             .navigationTitle("SyncBridge")
         }
     }
 }
+
+#if os(iOS)
+import UIKit
+#endif

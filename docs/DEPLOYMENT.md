@@ -171,3 +171,93 @@ Use `/ready` as the load-balancer health check target.
 - [ ] Object storage bucket exists and credentials have write permissions
 - [ ] TURN server is configured (optional, but required for cross-NAT file transfer)
 - [ ] `GET /ready` returns `{"status":"ready"}` after startup
+
+---
+
+## 9. VPS Production (sync.abhiraj.xyz — alongside K12Hunar)
+
+**Do not touch:** K12Hunar PostgreSQL, nginx sites, ports `3000` / `8080` / `5432`.
+
+### Layout
+
+```
+/root
+├── k12hunar
+└── syncapp
+
+/opt
+├── k12hunar -> /root/k12hunar
+└── syncapp  -> /root/syncapp
+```
+
+### Ports (localhost only)
+
+| Service | Bind | Public domain |
+|---------|------|---------------|
+| Web dashboard | `127.0.0.1:2000` | `sync.abhiraj.xyz` |
+| API + WebSocket | `127.0.0.1:2001` | `api.sync.abhiraj.xyz` |
+
+### Database
+
+Uses **host PostgreSQL** (no Postgres container):
+
+```sql
+CREATE ROLE syncbridge_user LOGIN PASSWORD '...';
+CREATE DATABASE syncbridge OWNER syncbridge_user;
+```
+
+`pg_hba.conf` — Docker bridge only:
+
+```
+host  syncbridge  syncbridge_user  172.16.0.0/12  scram-sha-256
+```
+
+### Deploy
+
+```bash
+cd /root/syncapp
+bash scripts/deploy-vps.sh
+# or: deploy-sync
+```
+
+Uses `docker-compose.vps.yml` (API + web nginx, no Postgres).
+
+### SSL
+
+After DNS A records point to the VPS (`87.232.72.185` or grey-cloud in Cloudflare):
+
+```bash
+certbot certonly --webroot -w /var/www/certbot \
+  -d sync.abhiraj.xyz -d api.sync.abhiraj.xyz
+cp deploy/nginx-syncbridge.conf /etc/nginx/sites-available/syncbridge
+nginx -t && systemctl reload nginx
+```
+
+Certificate path: `/etc/letsencrypt/live/sync.abhiraj.xyz/`
+
+### Client URLs
+
+| Client | Server URL | PIN |
+|--------|------------|-----|
+| Mac / Web / iOS / Android | `https://api.sync.abhiraj.xyz` | `070901` |
+| Web dashboard | `https://sync.abhiraj.xyz` | `070901` |
+
+WebSocket: `wss://api.sync.abhiraj.xyz/ws` (derived from API URL in clients).
+
+### Migrating from abhiraj.xyz → sync.abhiraj.xyz
+
+1. **DNS** — Add A records (or CNAME) for `sync.abhiraj.xyz` and `api.sync.abhiraj.xyz` → VPS IP. Wait for propagation.
+2. **Pull** — `cd /root/syncapp && git pull`
+3. **CORS** — In `/root/syncapp/.env` set:
+   ```
+   CORS_ORIGINS=https://sync.abhiraj.xyz,https://api.sync.abhiraj.xyz
+   ```
+4. **SSL** — Issue cert (see above). Old `abhiraj.xyz` cert is not reused.
+5. **Deploy** — `deploy-sync` (rebuilds web with `VITE_API_URL=https://api.sync.abhiraj.xyz`).
+6. **Verify** — `health-sync` or:
+   ```bash
+   curl -sI https://sync.abhiraj.xyz | head -1
+   curl -s https://api.sync.abhiraj.xyz/ready
+   ```
+7. **Clients** — Update server URL on paired devices to `https://api.sync.abhiraj.xyz`.
+8. **Optional** — Remove old SyncBridge `server_name` blocks from nginx if `abhiraj.xyz` / `api.abhiraj.xyz` were only used for SyncBridge (do not touch K12Hunar vhosts).

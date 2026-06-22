@@ -1,290 +1,201 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ClipboardEntry,
-  FileEntry,
   clearSession,
   fetchClipboardHistory,
+  fetchCurrentClipboard,
   fetchFiles,
-  getAccessToken,
-  getServerUrl,
   isAuthenticated,
-  pinClipboard,
-  pinFile,
-  setServerUrl,
-  unlock,
 } from "./api";
+import {
+  AppHeader,
+  AppLayout,
+  AppModal,
+  AppSidebar,
+  type NavId,
+} from "./components";
+import { ThemeProvider } from "./design/ThemeProvider";
+import { ToastProvider, useToast } from "./design/ToastProvider";
+import { ClipboardPage } from "./pages/ClipboardPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { DevicesPage } from "./pages/DevicesPage";
+import { FilesPage } from "./pages/FilesPage";
+import { ImagesPage } from "./pages/ImagesPage";
+import { LoginPage } from "./pages/LoginPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
+import { relativeTime, truncate } from "./lib/format";
+import { AppButton } from "./components";
 
-type Tab = "clipboard" | "files";
+const ws = new SyncBridgeWS();
 
-export default function App() {
+const PAGE_TITLES: Record<NavId, string> = {
+  dashboard: "Dashboard",
+  clipboard: "Clipboard",
+  pinned: "Pinned",
+  files: "Files",
+  images: "Images",
+  devices: "Devices",
+  settings: "Settings",
+};
+
+function AppShell() {
   const [authed, setAuthed] = useState(isAuthenticated());
-  const [tab, setTab] = useState<Tab>("clipboard");
+  const [nav, setNav] = useState<NavId>("dashboard");
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
+  const [stats, setStats] = useState({ clipboard: 0, pinned: 0, files: 0 });
+  const [copied, setCopied] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { toast } = useToast();
+
+  const refreshStats = useCallback(async () => {
+    try {
+      const [clip, fileData] = await Promise.all([
+        fetchClipboardHistory(),
+        fetchFiles(),
+      ]);
+      setStats({
+        clipboard: clip.entries.length,
+        pinned: clip.entries.filter((e) => e.pinned).length,
+        files: fileData.files.length,
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const onAuthed = useCallback(async () => {
+    setAuthed(true);
+    try {
+      const entry = await fetchCurrentClipboard();
+      setLatestPopup(entry);
+    } catch {
+      /* no clipboard */
+    }
+    ws.connect();
+    await refreshStats();
+  }, [refreshStats]);
+
+  useEffect(() => {
+    if (!authed) {
+      ws.disconnect();
+      return;
+    }
+    ws.onConnectionChange = setLiveConnected;
+    ws.onMessage = (type, payload) => {
+      if (type === "clipboard.new") {
+        const entry = payloadToClipboardEntry(payload);
+        if (entry) {
+          window.dispatchEvent(new CustomEvent("syncbridge:clipboard-new", { detail: entry }));
+          toast("Clipboard updated", "success");
+        }
+      }
+      if (type === "clipboard.pin") {
+        window.dispatchEvent(new CustomEvent("syncbridge:clipboard-pin", { detail: payload }));
+      }
+    };
+    ws.connect();
+    refreshStats();
+    return () => ws.disconnect();
+  }, [authed, refreshStats, toast]);
+
+  function logout() {
+    ws.disconnect();
+    clearSession();
+    setAuthed(false);
+    setLatestPopup(null);
+  }
+
+  async function copyLatest() {
+    if (!latestPopup) return;
+    try {
+      await navigator.clipboard.writeText(latestPopup.content);
+      setCopied(true);
+      toast("Copied to clipboard", "success");
+      closeTimer.current = setTimeout(() => {
+        setLatestPopup(null);
+        setCopied(false);
+      }, 800);
+    } catch {
+      toast("Could not copy", "danger");
+    }
+  }
 
   if (!authed) {
-    return <LoginScreen onSuccess={() => setAuthed(true)} />;
+    return <LoginPage onSuccess={onAuthed} />;
   }
 
-  return (
-    <div className="app">
-      <header className="header">
-        <h1>SyncBridge</h1>
-        <nav className="tabs">
-          <button
-            type="button"
-            className={tab === "clipboard" ? "active" : ""}
-            onClick={() => setTab("clipboard")}
-          >
-            Clipboard
-          </button>
-          <button
-            type="button"
-            className={tab === "files" ? "active" : ""}
-            onClick={() => setTab("files")}
-          >
-            Files
-          </button>
-        </nav>
-        <button
-          type="button"
-          className="logout"
-          onClick={() => {
-            clearSession();
-            setAuthed(false);
-          }}
-        >
-          Log out
-        </button>
-      </header>
-      <main>
-        {tab === "clipboard" ? <ClipboardView /> : <FilesView />}
-      </main>
-    </div>
-  );
-}
-
-function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
-  const [serverUrl, setServerUrlInput] = useState(getServerUrl());
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function submit() {
-    setError(null);
-    setLoading(true);
-    try {
-      setServerUrl(serverUrl);
-      await unlock(pin);
-      setPin("");
-      onSuccess();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unlock failed");
-    } finally {
-      setLoading(false);
+  function renderPage() {
+    switch (nav) {
+      case "dashboard":
+        return (
+          <DashboardPage
+            clipboardCount={stats.clipboard}
+            pinnedCount={stats.pinned}
+            fileCount={stats.files}
+            connected={liveConnected}
+          />
+        );
+      case "clipboard":
+        return <ClipboardPage />;
+      case "pinned":
+        return <ClipboardPage pinnedOnly />;
+      case "files":
+        return <FilesPage />;
+      case "images":
+        return <ImagesPage />;
+      case "devices":
+        return <DevicesPage />;
+      case "settings":
+        return <SettingsPage />;
     }
   }
 
   return (
-    <div className="login">
-      <h1>SyncBridge</h1>
-      <p className="muted">Enter your PIN to unlock</p>
-      <label>
-        Server URL
-        <input
-          type="url"
-          value={serverUrl}
-          onChange={(e) => setServerUrlInput(e.target.value)}
-          placeholder="http://localhost:8080"
+    <AppLayout>
+      <AppSidebar active={nav} onNavigate={setNav} onLogout={logout} />
+      <div className="ds-main">
+        <AppHeader
+          title={PAGE_TITLES[nav]}
+          subtitle="SyncBridge web dashboard"
+          connected={liveConnected}
         />
-      </label>
-      <label>
-        PIN
-        <input
-          type="password"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          inputMode="numeric"
-          autoComplete="off"
-        />
-      </label>
-      {error && <p className="error">{error}</p>}
-      <button type="button" disabled={loading || !pin} onClick={submit}>
-        {loading ? "Unlocking…" : "Unlock"}
-      </button>
-      <p className="hint">Trusted devices skip this screen for 7 days.</p>
-    </div>
-  );
-}
-
-function ClipboardView() {
-  const [entries, setEntries] = useState<ClipboardEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    if (!getAccessToken()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchClipboardHistory();
-      setEntries(data.entries);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load clipboard");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function togglePin(entry: ClipboardEntry) {
-    try {
-      await pinClipboard(entry.id, !entry.pinned);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Pin failed");
-    }
-  }
-
-  const temporary = entries.filter((e) => !e.pinned);
-  const pinned = entries.filter((e) => e.pinned);
-
-  return (
-    <div className="view">
-      <div className="view-toolbar">
-        <button type="button" onClick={load} disabled={loading}>Refresh</button>
+        <main className="ds-content">{renderPage()}</main>
       </div>
-      {error && <p className="error">{error}</p>}
-      {loading && <p className="muted">Loading…</p>}
-      <ClipboardSection title="Temporary" entries={temporary} empty="No temporary clipboard items" onPin={togglePin} />
-      <ClipboardSection title="Pinned" entries={pinned} empty="No pinned clipboard items" onPin={togglePin} />
-    </div>
+      <AppModal
+        open={!!latestPopup}
+        title="Latest Clipboard"
+        onClose={() => setLatestPopup(null)}
+      >
+        {latestPopup && (
+          <>
+            <p className="ds-subtitle" style={{ marginBottom: "var(--space-4)" }}>
+              {relativeTime(latestPopup.created_at)}
+            </p>
+            <AppButton variant="ghost" block onClick={copyLatest} style={{ textAlign: "left", whiteSpace: "pre-wrap" }}>
+              {truncate(latestPopup.content, 500)}
+            </AppButton>
+            {copied && (
+              <p style={{ textAlign: "center", color: "var(--color-success)", marginTop: "var(--space-3)" }}>
+                ✓ Copied
+              </p>
+            )}
+          </>
+        )}
+      </AppModal>
+    </AppLayout>
   );
 }
 
-function FilesView() {
-  const [files, setFiles] = useState<FileEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    if (!getAccessToken()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchFiles();
-      setFiles(data.files);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load files");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function togglePin(file: FileEntry) {
-    try {
-      await pinFile(file.id, !file.is_pinned);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Pin failed");
-    }
-  }
-
-  const temporary = files.filter((f) => !f.is_pinned);
-  const pinned = files.filter((f) => f.is_pinned);
-
+export default function App() {
   return (
-    <div className="view">
-      <div className="view-toolbar">
-        <button type="button" onClick={load} disabled={loading}>Refresh</button>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {loading && <p className="muted">Loading…</p>}
-      <FilesSection title="Temporary" files={temporary} empty="No temporary files" onPin={togglePin} />
-      <FilesSection title="Pinned" files={pinned} empty="No pinned files" onPin={togglePin} />
-    </div>
+    <ThemeProvider>
+      <ToastProvider>
+        <div className="ds-app">
+          <AppShell />
+        </div>
+      </ToastProvider>
+    </ThemeProvider>
   );
-}
-
-function ClipboardSection({
-  title,
-  entries,
-  empty,
-  onPin,
-}: {
-  title: string;
-  entries: ClipboardEntry[];
-  empty: string;
-  onPin: (entry: ClipboardEntry) => void;
-}) {
-  return (
-    <section className="section">
-      <h2>{title}</h2>
-      {entries.length === 0 ? (
-        <p className="muted">{empty}</p>
-      ) : (
-        <ul className="list">
-          {entries.map((entry) => (
-            <li key={entry.id} className="list-item">
-              <div className="list-body">
-                <span className="primary">{entry.content}</span>
-                <span className="meta">{entry.content_type}</span>
-              </div>
-              <button type="button" className="pin-btn" onClick={() => onPin(entry)}>
-                {entry.pinned ? "Unpin" : "Pin"}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function FilesSection({
-  title,
-  files,
-  empty,
-  onPin,
-}: {
-  title: string;
-  files: FileEntry[];
-  empty: string;
-  onPin: (file: FileEntry) => void;
-}) {
-  return (
-    <section className="section">
-      <h2>{title}</h2>
-      {files.length === 0 ? (
-        <p className="muted">{empty}</p>
-      ) : (
-        <ul className="list">
-          {files.map((file) => (
-            <li key={file.id} className="list-item">
-              <div className="list-body">
-                <span className="primary">{file.name}</span>
-                <span className="meta">
-                  {formatBytes(file.total_size)} · {file.status}
-                </span>
-              </div>
-              <button type="button" className="pin-btn" onClick={() => onPin(file)}>
-                {file.is_pinned ? "Unpin" : "Pin"}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }

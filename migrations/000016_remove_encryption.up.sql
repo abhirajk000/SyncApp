@@ -25,5 +25,18 @@ ALTER TABLE clipboard_entries
 ALTER TABLE files
     DROP COLUMN IF EXISTS original_name_nonce;
 
-ALTER TABLE files
-    ALTER COLUMN original_name TYPE TEXT USING COALESCE(convert_from(original_name, 'UTF8'), '');
+-- original_name was TEXT since 000007; only convert if a fork used BYTEA
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'files'
+          AND column_name = 'original_name'
+          AND udt_name = 'bytea'
+    ) THEN
+        ALTER TABLE files
+            ALTER COLUMN original_name TYPE TEXT
+            USING COALESCE(convert_from(original_name, 'UTF8'), '');
+    END IF;
+END $$;

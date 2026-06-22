@@ -1,57 +1,83 @@
-# SyncBridge — Android Client (Stub)
+# SyncBridge Android
 
-Minimal Kotlin scaffold for Phase D+E. Full app (Compose UI, clipboard monitor, file transfer) is not included yet.
+Full Kotlin + Jetpack Compose client with Material 3, Outfit font, and background clipboard sync.
 
 ## Requirements
 
-| Tool        | Version |
-|-------------|---------|
-| Android Studio | Hedgehog+ |
-| Kotlin      | 1.9+    |
-| minSdk      | 26      |
+- Android Studio Ladybug (2024.2+) or CLI with **Android SDK 35**
+- JDK 17+
+- `local.properties` with `sdk.dir=/path/to/Android/sdk`
 
-## Project setup
-
-1. Open Android Studio → **New Project** → Empty Activity
-2. Package name: `com.syncbridge.android`
-3. Copy `AuthRepository.kt` into `app/src/main/java/com/syncbridge/android/auth/`
-
-## Configuration
-
-| Setting     | Default                 | Storage          |
-|-------------|-------------------------|------------------|
-| Server URL  | `http://localhost:8080` | SharedPreferences |
-| Device ID   | auto-generated UUID     | SharedPreferences |
-| Tokens      | —                       | SharedPreferences |
-
-Default master PIN (server-side): `070901`.
-
-For emulator testing against a local backend, use `http://10.0.2.2:8080` instead of `localhost`.
-
-## PIN unlock pattern
-
-```kotlin
-val auth = AuthRepository(context)
-auth.serverUrl = "http://10.0.2.2:8080"
-val result = auth.unlock(pin = userPin, deviceName = "Pixel 8")
-// result.accessToken → use as Bearer token on authenticated calls
+```properties
+# clients/android/local.properties (not committed)
+sdk.dir=/Users/you/Library/Android/sdk
 ```
 
-Request body (matches macOS / web):
+## Project structure
 
-```json
-{
-  "pin": "…",
-  "device_id": "uuid",
-  "device_name": "Android Device",
-  "platform": "android"
-}
+```
+clients/android/
+├── app/
+│   ├── build.gradle.kts
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       ├── assets/fonts/Outfit-Variable.ttf
+│       ├── java/com/syncbridge/android/
+│       │   ├── MainActivity.kt
+│       │   ├── SyncBridgeApp.kt
+│       │   ├── data/          # ApiClient, FileUploader
+│       │   ├── sync/          # Foreground service, WebSocket
+│       │   ├── ui/            # Compose screens + theme
+│       │   └── util/
+│       └── res/
+├── build.gradle.kts
+├── settings.gradle.kts
+└── gradlew
 ```
 
-## Next steps (Phase D+E)
+## Features
 
-- Compose `LoginScreen` with PIN field
-- Clipboard history with Temporary / Pinned sections
-- `POST /api/v1/clipboard/:id/pin`
-- Files list with Temporary / Pinned sections
-- `POST /api/v1/files/:id/pin`
+| Feature | Implementation |
+|---------|----------------|
+| PIN unlock | `ApiClient.unlock()` → trusted device 7 days |
+| Clipboard sync | `SyncClipboardService` + `OnPrimaryClipChangedListener` |
+| WebSocket | `WSClient` → `wss://api…/ws` |
+| Quick Send | Camera / Gallery / Files + text on Clipboard tab |
+| Share Sheet | `ACTION_SEND` / `SEND_MULTIPLE` in `MainActivity` |
+| Dark mode | Material 3 + system theme |
+| Material You | Dynamic color with teal primary override |
+
+Default API URL: `https://api.sync.abhiraj.xyz` (PIN `070901`).
+
+## Build commands
+
+From `clients/android/`:
+
+```bash
+./gradlew assembleDebug      # Debug APK
+./gradlew assembleRelease    # Release APK (signed with debug key by default)
+./gradlew bundleRelease      # Play Store AAB
+```
+
+## Output paths
+
+| Artifact | Path |
+|----------|------|
+| Debug APK | `app/build/outputs/apk/debug/app-debug.apk` |
+| Release APK | `app/build/outputs/apk/release/app-release.apk` |
+| Release AAB | `app/build/outputs/bundle/release/app-release.aab` |
+
+## Release signing (production)
+
+Create `keystore.properties` and configure `signingConfigs` in `app/build.gradle.kts` before publishing to Play Store.
+
+## Permissions
+
+- `INTERNET` — API + WebSocket
+- `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC` — background sync
+- `POST_NOTIFICATIONS` — sync + clipboard notifications (Android 13+)
+- `CAMERA` — optional, for Take Photo
+
+## Design system
+
+Matches web: Outfit font, teal primary (`#0D9488`), indigo secondary, slate neutrals, shared spacing/radius tokens in `ui/theme/DesignTokens.kt`.

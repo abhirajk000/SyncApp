@@ -15,6 +15,7 @@
 import Foundation
 import AppKit
 import Combine
+import SwiftUI
 
 @MainActor
 final class AppState: ObservableObject {
@@ -23,9 +24,15 @@ final class AppState: ObservableObject {
     @Published var authState: AuthState = .loggedOut
     @Published var syncStatus: SyncStatus = .disconnected
 
+    // ── Latest clipboard popup ────────────────────────────────────────────────
+    @Published var latestClipboardPopup: ClipboardEntryResponse? = nil
+
+    @AppStorage("syncEnabled") private var syncEnabled = true
+    @AppStorage("showNotifications") private var showNotifications = true
+    @AppStorage("historyLimit") private var historyLimit = 100
+
     // ── Clipboard ─────────────────────────────────────────────────────────────
     @Published var clipboardHistory: [ClipboardEntryResponse] = []
-    @Published var currentClipboard: String = ""
 
     // ── Devices ───────────────────────────────────────────────────────────────
     @Published var devices: [DeviceResponse] = []
@@ -88,6 +95,7 @@ final class AppState: ObservableObject {
             if case .loggedIn = authState {
                 startServices()
                 await refreshAll()
+                await presentLatestClipboardPopup()
             }
         } catch {
             authState = .loggedOut
@@ -101,7 +109,10 @@ final class AppState: ObservableObject {
     func startServices() {
         syncStatus = .connecting
         wsClient.connect()
-        clipboardMonitor.start()
+        if syncEnabled {
+            clipboardMonitor.start()
+        }
+        NotificationService.requestPermission()
     }
 
     func stopServices() {
@@ -119,6 +130,7 @@ final class AppState: ObservableObject {
             authState = .loggedIn(userId: resp.userId, deviceId: resp.deviceId)
             startServices()
             await refreshAll()
+            await presentLatestClipboardPopup()
         } catch {
             authState = .loggedOut
             errorMessage = errorDescription(error)
@@ -159,11 +171,26 @@ final class AppState: ObservableObject {
 
     func refreshClipboardHistory() async {
         do {
-            let resp = try await authService.getClipboardHistory(limit: 50)
+            let limit = max(10, min(historyLimit, 500))
+            let resp = try await authService.getClipboardHistory(limit: limit)
             clipboardHistory = resp.entries
         } catch {
             if handleAuthError(error) { return }
         }
+    }
+
+    /// Fetch and show the latest clipboard entry after auth (centered popup).
+    func presentLatestClipboardPopup() async {
+        do {
+            let entry = try await authService.getCurrentClipboard()
+            latestClipboardPopup = entry
+        } catch {
+            // No clipboard yet — skip popup.
+        }
+    }
+
+    func dismissLatestClipboardPopup() {
+        latestClipboardPopup = nil
     }
 
     func refreshDevices() async {
@@ -342,7 +369,13 @@ final class AppState: ObservableObject {
             )
             clipboardMonitor.applyRemoteEntry(entry)
             clipboardHistory.insert(entry, at: 0)
-            if clipboardHistory.count > 100 { clipboardHistory.removeLast() }
+            let limit = max(10, min(historyLimit, 500))
+            if clipboardHistory.count > limit { clipboardHistory.removeLast() }
+
+            if showNotifications {
+                NotificationService.notifyClipboardUpdated(preview: content)
+            }
+            syncStatus = .connected
 
         case "clipboard.pin":
             guard let payload = envelope.payload?.value as? [String: Any],

@@ -78,6 +78,9 @@ Select the **SyncBridgeMac** target → **General** tab:
 | Bundle Identifier  | com.syncbridge.mac |
 | Version            | 1.0            |
 | Build              | 1              |
+| App Icon           | `AppIcon` (from `Resources/AppIcon.icns`) |
+
+Add `Resources/AppIcon.icns`, `Resources/MenuBarIcon.png`, and `Resources/AppLogo.png` to the target’s **Copy Bundle Resources** build phase.
 
 ### 4. Set the custom Info.plist
 

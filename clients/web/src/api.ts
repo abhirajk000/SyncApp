@@ -1,4 +1,5 @@
-const DEFAULT_SERVER = "http://localhost:8080";
+const DEFAULT_SERVER =
+  import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
 const KEYS = {
   serverUrl: "syncbridge.serverUrl",
@@ -136,6 +137,10 @@ export async function fetchClipboardHistory(): Promise<ClipboardHistoryResponse>
   return apiRequest<ClipboardHistoryResponse>("/api/v1/clipboard?limit=100");
 }
 
+export async function fetchCurrentClipboard(): Promise<ClipboardEntry> {
+  return apiRequest<ClipboardEntry>("/api/v1/clipboard/current");
+}
+
 export async function pinClipboard(id: string, pinned: boolean): Promise<void> {
   await apiRequest<void>(`/api/v1/clipboard/${id}/pin`, {
     method: "POST",
@@ -151,5 +156,46 @@ export async function pinFile(id: string, pinned: boolean): Promise<void> {
   await apiRequest<void>(`/api/v1/files/${id}/pin`, {
     method: "POST",
     body: JSON.stringify({ pinned }),
+  });
+}
+
+export async function syncClipboard(
+  content: string,
+  contentType = "text/plain",
+): Promise<ClipboardEntry> {
+  return apiRequest<ClipboardEntry>("/api/v1/clipboard", {
+    method: "POST",
+    body: JSON.stringify({ content_type: contentType, content }),
+  });
+}
+
+export interface FileInitRequest {
+  name: string;
+  mime_type: string;
+  total_size: number;
+  chunk_size: number;
+  file_hash: string;
+  transfer_mode: string;
+  force_relay: boolean;
+}
+
+export interface FileInitResponse {
+  file_id: string;
+  chunk_size: number;
+  chunk_count: number;
+  expires_at: string;
+}
+
+export async function initFileUpload(req: FileInitRequest): Promise<FileInitResponse> {
+  return apiRequest<FileInitResponse>("/api/v1/files/init", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function completeFileUpload(fileId: string): Promise<FileEntry> {
+  return apiRequest<FileEntry>(`/api/v1/files/${fileId}/complete`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }

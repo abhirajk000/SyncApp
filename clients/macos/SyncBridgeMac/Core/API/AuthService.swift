@@ -67,6 +67,10 @@ final class AuthService {
         try await api.request("/api/v1/clipboard?limit=\(limit)&offset=\(offset)")
     }
 
+    func getCurrentClipboard() async throws -> ClipboardEntryResponse {
+        try await api.request("/api/v1/clipboard/current")
+    }
+
     func deleteClipboardEntry(id: String) async throws {
         let _: EmptyResponse = try await api.request("/api/v1/clipboard/\(id)", method: "DELETE")
     }

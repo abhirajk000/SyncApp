@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SyncBridge</string>
+    <string name="sync_channel_name">SyncBridge Sync</string>
+    <string name="sync_channel_desc">Keeps clipboard synced in the background</string>
+    <string name="notification_sync_running">Clipboard sync active</string>
+    <string name="notification_clipboard_updated">Clipboard updated</string>
+    <string name="unlock_title">SyncBridge</string>
+    <string name="unlock_subtitle">Enter your PIN to unlock</string>
+    <string name="trusted_device_hint">Trusted devices skip this screen for 7 days.</string>
+</resources>

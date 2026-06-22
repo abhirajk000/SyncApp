@@ -73,3 +73,41 @@ UI: **Temporary Section** + **Pinned Section** (📌 Pin / Unpin on every item).
 
 Choose the **simplest** implementation that meets requirements.  
 Feel like **Universal Clipboard + AirDrop + history** — fast, simple, reliable, low RAM/disk, minimal config.
+
+## Instant clipboard (product UX)
+
+**Goal:** Faster than opening WhatsApp/Telegram — Copy → Available Everywhere → Paste.
+
+### Realtime engine
+
+- Native OS clipboard listeners (macOS: changeCount poll **100 ms**; Android: `OnPrimaryClipChangedListener`; iOS: foreground + app open)
+- **WebSocket push** for `clipboard.new` — no polling, no refresh buttons, no manual sync
+- Target latency: **<100 ms** same Wi‑Fi, **<500 ms** internet
+
+### Latest clipboard popup (all clients)
+
+After PIN unlock / app open:
+
+1. `GET /api/v1/clipboard/current`
+2. Centered modal with content + relative time
+3. **Tap content** → copy → show “✓ Copied” 800 ms → auto close
+
+### macOS (primary)
+
+- Menu bar utility, launch at login, close window = keep running
+- Only **Quit SyncBridge** stops services
+- Settings: sync automatically, notifications, history limit, start hidden
+
+### Android
+
+- Foreground service + WebSocket + clipboard listener
+- Notification: “Clipboard Updated” — tap opens app
+
+### iOS
+
+- No permanent background clipboard replacement — WS while active, latest on open
+- Fast launch, one-tap copy popup
+
+### Web (fallback)
+
+- WebSocket live history; popup on unlock; tap-to-copy (Clipboard API requires user gesture)

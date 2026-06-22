@@ -12,6 +12,7 @@
 //   │                                      │
 //   └──────────────────────────────────────┘
 
+import AppKit
 import SwiftUI
 
 struct MenuBarView: View {
@@ -34,13 +35,21 @@ struct MenuBarView: View {
     }
 
     var body: some View {
-        Group {
-            if case .loggedOut = appState.authState {
-                LoginView()
-                    .frame(width: 340, height: 520)
-            } else {
-                mainContent
-                    .frame(width: 340, height: 520)
+        ZStack {
+            Group {
+                if case .loggedOut = appState.authState {
+                    LoginView()
+                        .frame(width: 340, height: 520)
+                } else {
+                    mainContent
+                        .frame(width: 340, height: 520)
+                }
+            }
+
+            if let entry = appState.latestClipboardPopup {
+                LatestClipboardPopupView(entry: entry) {
+                    appState.dismissLatestClipboardPopup()
+                }
             }
         }
     }
@@ -60,17 +69,18 @@ struct MenuBarView: View {
     // MARK: – Header
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                .foregroundColor(.accentColor)
-                .font(.title2)
+        HStack(spacing: DS.Space.sm) {
+            Image(nsImage: NSImage(named: "AppLogo") ?? NSImage())
+                .resizable()
+                .scaledToFit()
+                .frame(width: 24, height: 24)
 
             Text("SyncBridge")
-                .font(.headline)
+                .font(DS.Font.headline())
 
             Spacer()
 
-            statusIndicator
+            statusBadge
 
             Button {
                 Task { await appState.initiatePairing() }
@@ -87,39 +97,25 @@ struct MenuBarView: View {
                     .help("Sign out")
             }
             .buttonStyle(.plain)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DS.Space.lg)
+        .padding(.vertical, DS.Space.md)
     }
 
-    private var statusIndicator: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
-            Text(statusText)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-
-    private var statusColor: Color {
+    @ViewBuilder
+    private var statusBadge: some View {
         switch appState.syncStatus {
-        case .connected, .syncing: return .green
-        case .connecting:           return .orange
-        case .disconnected:         return .gray
-        case .error:                return .red
-        }
-    }
-
-    private var statusText: String {
-        switch appState.syncStatus {
-        case .connected:   return "Synced"
-        case .syncing:     return "Syncing"
-        case .connecting:  return "Connecting"
-        case .disconnected: return "Offline"
-        case .error(let msg): return msg
+        case .connected:
+            AppBadge(status: .connected, label: "Synced")
+        case .syncing:
+            AppBadge(status: .syncing)
+        case .connecting:
+            AppBadge(status: .syncing, label: "Connecting")
+        case .disconnected:
+            AppBadge(status: .offline)
+        case .error:
+            AppBadge(status: .disconnected, label: "Error")
         }
     }
 
@@ -131,16 +127,16 @@ struct MenuBarView: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    VStack(spacing: 2) {
+                    VStack(spacing: DS.Space.xs) {
                         Image(systemName: tab.icon)
                         Text(tab.rawValue)
-                            .font(.caption2)
+                            .font(DS.Font.label())
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
+                    .padding(.vertical, DS.Space.sm)
+                    .foregroundStyle(selectedTab == tab ? DS.Color.primary : .secondary)
                     .background(selectedTab == tab
-                        ? Color.accentColor.opacity(0.1)
+                        ? DS.Color.primary.opacity(0.1)
                         : Color.clear)
                 }
                 .buttonStyle(.plain)
@@ -221,31 +217,29 @@ struct FilesView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "folder.badge.plus")
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-            Text("Drop files here to send")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+        AppEmptyState(
+            icon: "folder.badge.plus",
+            title: "No files yet",
+            description: "Drop files here or use Send File to sync across devices.",
+            actionTitle: "Send File…",
+            action: openFilePicker
+        )
+    }
+
+    private func openFilePicker() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK {
+            panel.urls.forEach { appState.uploadFile($0) }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var dropZone: some View {
-        Button {
-            let panel = NSOpenPanel()
-            panel.allowsMultipleSelection = true
-            panel.canChooseDirectories = false
-            if panel.runModal() == .OK {
-                panel.urls.forEach { appState.uploadFile($0) }
-            }
-        } label: {
-            Label("Send File…", systemImage: "arrow.up.circle")
-                .frame(maxWidth: .infinity)
+        AppButton(title: "Send File…", variant: .primary) {
+            openFilePicker()
         }
-        .buttonStyle(.borderedProminent)
-        .padding(12)
+        .padding(DS.Space.md)
         .onDrop(of: ["public.file-url"], isTargeted: nil) { providers in
             providers.forEach { provider in
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
@@ -343,17 +337,13 @@ struct DevicesView: View {
         }
         .overlay {
             if appState.devices.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "desktopcomputer.and.arrow.down")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary)
-                    Text("No paired devices")
-                        .foregroundColor(.secondary)
-                    Button("Pair a Device") {
-                        Task { await appState.initiatePairing() }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
+                AppEmptyState(
+                    icon: "desktopcomputer.and.arrow.down",
+                    title: "No paired devices",
+                    description: "Pair another phone or computer to sync clipboard and files.",
+                    actionTitle: "Pair a Device",
+                    action: { Task { await appState.initiatePairing() } }
+                )
             }
         }
         .sheet(isPresented: $appState.isPairingActive) {

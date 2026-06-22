@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage("syncEnabled")         private var syncEnabled = true
     @AppStorage("showNotifications")   private var showNotifications = true
     @AppStorage("historyLimit")        private var historyLimit = 100
+    @AppStorage("startHidden")         private var startHidden = false
     @State private var launchAtLogin = false
     @State private var serverURL = KeychainService.shared.serverURL
 
@@ -33,7 +34,7 @@ struct SettingsView: View {
 
             // ── Sync ──────────────────────────────────────────────────────────
             Section("Clipboard Sync") {
-                Toggle("Enable clipboard sync", isOn: $syncEnabled)
+                Toggle("Sync clipboard automatically", isOn: $syncEnabled)
                     .onChange(of: syncEnabled) { _, enabled in
                         if enabled { appState.clipboardMonitor.start() }
                         else       { appState.clipboardMonitor.stop() }
@@ -42,6 +43,14 @@ struct SettingsView: View {
                 Toggle("Show notifications on sync", isOn: $showNotifications)
 
                 Stepper("Keep last \(historyLimit) entries", value: $historyLimit, in: 10...500, step: 10)
+            }
+
+            Section("Background") {
+                Text("Closing the window keeps SyncBridge running in the menu bar. Use Quit SyncBridge to stop.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Toggle("Start hidden (menu bar only)", isOn: $startHidden)
             }
 
             // ── Startup ───────────────────────────────────────────────────────
@@ -78,6 +87,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .tint(DS.Color.primary)
         .frame(width: 440, height: 500)
         .onAppear {
             launchAtLogin = LoginItemService.shared.isEnabled

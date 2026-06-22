@@ -1,6 +1,6 @@
-// LoginView.swift
-// PIN unlock screen — master PIN is validated on the server.
+// LoginView.swift — Premium unlock screen
 
+import AppKit
 import SwiftUI
 
 struct LoginView: View {
@@ -8,73 +8,52 @@ struct LoginView: View {
     @EnvironmentObject var appState: AppState
 
     @State private var pin = ""
-    @State private var serverURL = KeychainService.shared.serverURL
     @State private var isLoading = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 6) {
-                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                    .font(.system(size: 48))
-                    .foregroundColor(.accentColor)
-                Text("SyncBridge")
-                    .font(.title2.bold())
-                Text("Enter your PIN to unlock")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.top, 24)
+        ZStack {
+            LinearGradient(
+                colors: [DS.Color.primary.opacity(0.08), DS.Color.secondary.opacity(0.05), DS.Color.bg],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-            HStack {
-                Image(systemName: "server.rack")
-                    .foregroundColor(.secondary)
-                TextField("Server URL", text: $serverURL)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        KeychainService.shared.serverURL = serverURL
-                        APIClient.shared.baseURL = serverURL
-                    }
-            }
+            VStack(spacing: DS.Space.xl) {
+                VStack(spacing: DS.Space.sm) {
+                    Image(nsImage: NSImage(named: "AppLogo") ?? NSImage())
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .padding(DS.Space.sm)
+                        .background(DS.Color.primary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
 
-            SecureField("PIN", text: $pin)
-                .textFieldStyle(.roundedBorder)
-                .keyboardType(.numberPad)
-
-            if let msg = appState.errorMessage {
-                HStack {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.red)
-                    Text(msg)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text("SyncBridge")
+                        .font(DS.Font.display())
+                    Text("Enter your PIN to unlock")
+                        .font(DS.Font.caption())
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 4)
-            }
 
-            Button {
-                submit()
-            } label: {
-                Group {
-                    if isLoading {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Unlock")
+                AppCard {
+                    VStack(spacing: DS.Space.lg) {
+                        PremiumTextField(text: $pin, secure: true)
+                        if let msg = appState.errorMessage {
+                            Text(msg).font(DS.Font.caption()).foregroundStyle(DS.Color.danger)
+                        }
+                        AppButton(title: isLoading ? "Unlocking…" : "Unlock", disabled: isLoading || pin.isEmpty) {
+                            submit()
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: 360)
+                .padding(.horizontal, DS.Space.xl)
+
+                Spacer()
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(isLoading || pin.isEmpty)
-            .keyboardShortcut(.return)
-
-            Text("Trusted devices skip this screen for 7 days.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-
-            Spacer()
+            .padding(.top, DS.Space.xxl)
         }
-        .padding(.horizontal, 24)
         .onAppear { appState.errorMessage = nil }
     }
 
@@ -82,9 +61,6 @@ struct LoginView: View {
         guard !pin.isEmpty else { return }
         isLoading = true
         appState.errorMessage = nil
-        KeychainService.shared.serverURL = serverURL
-        APIClient.shared.baseURL = serverURL
-
         Task {
             defer { isLoading = false }
             await appState.unlock(pin: pin)
