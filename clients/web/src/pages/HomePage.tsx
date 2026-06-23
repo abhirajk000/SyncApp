@@ -196,19 +196,28 @@ export function HomePage() {
   }, [load]);
 
   useEffect(() => {
-    function onNew() {
+    function mergeEntry(e: Event) {
+      const entry = (e as CustomEvent<ClipboardEntry>).detail;
+      if (!entry || entry.pinned) return;
+      setEntries((prev) => {
+        const next = [entry, ...prev.filter((x) => x.id !== entry.id && !x.pinned)];
+        return next;
+      });
+      setLoading(false);
+    }
+    function onFilesUpdated() {
       void load();
     }
     function onAppRefresh(e: Event) {
       const manual = (e as CustomEvent<{ manual?: boolean }>).detail?.manual ?? false;
       void load(manual);
     }
-    window.addEventListener("syncbridge:clipboard-new", onNew);
-    window.addEventListener("syncbridge:files-updated", onNew);
+    window.addEventListener("syncbridge:clipboard-new", mergeEntry);
+    window.addEventListener("syncbridge:files-updated", onFilesUpdated);
     window.addEventListener("syncbridge:app-refresh", onAppRefresh);
     return () => {
-      window.removeEventListener("syncbridge:clipboard-new", onNew);
-      window.removeEventListener("syncbridge:files-updated", onNew);
+      window.removeEventListener("syncbridge:clipboard-new", mergeEntry);
+      window.removeEventListener("syncbridge:files-updated", onFilesUpdated);
       window.removeEventListener("syncbridge:app-refresh", onAppRefresh);
     };
   }, [load]);

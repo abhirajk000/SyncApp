@@ -37,6 +37,7 @@ type clipboardStore interface {
 	FindByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*repository.ClipboardEntry, int, error)
 	DeleteByID(ctx context.Context, id, userID uuid.UUID) error
 	SetPinned(ctx context.Context, id, userID uuid.UUID, pinned bool, retentionMinutes int) error
+	SetThumbnailKey(ctx context.Context, id, userID uuid.UUID, key string) error
 	SumUnpinnedBytes(ctx context.Context, userID uuid.UUID) (int64, error)
 	FindOldestUnpinned(ctx context.Context, userID uuid.UUID) (*repository.ClipboardEntry, error)
 	HardDelete(ctx context.Context, id, userID uuid.UUID) error
@@ -119,6 +120,8 @@ func (s *ClipboardService) Sync(
 	}
 	expiresAt := time.Now().Add(time.Duration(retentionMins) * time.Minute)
 
+	isImage := dto.IsImageContentType(contentType)
+
 	entry := &repository.ClipboardEntry{
 		ID:             uuid.New(),
 		UserID:         userID,
@@ -131,13 +134,22 @@ func (s *ClipboardService) Sync(
 		Pinned:         false,
 		ExpiresAt:      &expiresAt,
 	}
-	entry.ThumbnailKey = s.storeImageThumbnail(ctx, entry.ID, contentType, contentBytes)
 
 	if err := s.entries.Create(ctx, entry); err != nil {
 		return nil, false, fmt.Errorf("create entry: %w", err)
 	}
 
-	s.pushToDevices(userID, sourceDeviceID, entry, content)
+	pushContent := content
+	if isImage {
+		pushContent = ""
+	}
+	go s.pushToDevices(userID, sourceDeviceID, entry, pushContent, isImage)
+
+	if isImage {
+		contentCopy := append([]byte(nil), contentBytes...)
+		go s.generateThumbnailAsync(entry.ID, userID, contentType, contentCopy)
+	}
+
 	return toEntryResponse(entry, content, false), false, nil
 }
 
@@ -278,7 +290,8 @@ func resolveConflict(entries []*repository.ClipboardEntry) *repository.Clipboard
 func (s *ClipboardService) pushToDevices(
 	userID, sourceDeviceID uuid.UUID,
 	entry *repository.ClipboardEntry,
-	plainContent string,
+	pushContent string,
+	hasThumbnail bool,
 ) {
 	if s.hub == nil {
 		return
@@ -286,9 +299,10 @@ func (s *ClipboardService) pushToDevices(
 	data, err := ws.EncodeClipboardNew(
 		entry.ID.String(),
 		entry.ContentType,
-		plainContent,
+		pushContent,
 		entry.SourceDeviceID.String(),
 		entry.PlaintextSize,
+		hasThumbnail,
 		map[string]int64(entry.VectorClock),
 		entry.CreatedAt,
 	)
@@ -297,6 +311,21 @@ func (s *ClipboardService) pushToDevices(
 		return
 	}
 	s.hub.Broadcast(userID, data, &sourceDeviceID)
+}
+
+func (s *ClipboardService) generateThumbnailAsync(
+	entryID, userID uuid.UUID,
+	contentType string,
+	content []byte,
+) {
+	ctx := context.Background()
+	keyPtr := s.storeImageThumbnail(ctx, entryID, contentType, content)
+	if keyPtr == nil {
+		return
+	}
+	if err := s.entries.SetThumbnailKey(ctx, entryID, userID, *keyPtr); err != nil {
+		log.Warn().Err(err).Str("entry_id", entryID.String()).Msg("update clipboard thumbnail key failed")
+	}
 }
 
 func toEntryResponse(e *repository.ClipboardEntry, plain string, deduped bool) *dto.ClipboardEntryResponse {

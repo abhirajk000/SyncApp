@@ -127,6 +127,7 @@ final class AppState: ObservableObject {
             if case .loggedIn = authState {
                 startServices()
                 await refreshAll()
+                _ = await catchUpRemoteClipboard()
                 await presentLatestClipboardPopup()
             }
         } catch {
@@ -257,6 +258,56 @@ final class AppState: ObservableObject {
             let resp = try await authService.listFiles()
             files = resp.files
         } catch {}
+    }
+
+    /// Fetch latest remote clipboard and write to pasteboard (app open / resume).
+    @discardableResult
+    func catchUpRemoteClipboard() async -> Bool {
+        guard autoApplyRemoteClipboard else { return false }
+        guard let current = try? await authService.getCurrentClipboard() else { return false }
+        let localId = KeychainService.shared.deviceId ?? ""
+        guard current.sourceDeviceId != localId else { return false }
+        guard clipboardMonitor.shouldAutoApplyRemote(current, localDeviceId: localId, forceCatchUp: true) else {
+            return false
+        }
+        guard let resolved = await resolveEntryForApply(current) else { return false }
+        clipboardMonitor.applyRemoteEntry(resolved)
+        mergeClipboardEntry(resolved)
+        return true
+    }
+
+    private func mergeClipboardEntry(_ entry: ClipboardEntryResponse) {
+        if let idx = clipboardHistory.firstIndex(where: { $0.id == entry.id }) {
+            clipboardHistory[idx] = entry
+        } else {
+            clipboardHistory.insert(entry, at: 0)
+        }
+        let limit = max(10, min(historyLimit, 500))
+        if clipboardHistory.count > limit { clipboardHistory.removeLast() }
+    }
+
+    private func resolveEntryForApply(_ entry: ClipboardEntryResponse) async -> ClipboardEntryResponse? {
+        if entry.contentType.hasPrefix("image/"),
+           entry.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let full = try? await authService.getClipboardEntry(id: entry.id),
+               !full.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return full
+            }
+            if let data = await api.downloadClipboardThumbnail(entryId: entry.id),
+               let image = NSImage(data: data),
+               let tiff = image.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiff),
+               let jpeg = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.85]) {
+                let b64 = jpeg.base64EncodedString()
+                return ClipboardEntryResponse(
+                    id: entry.id, contentType: "image/jpeg", content: b64,
+                    sourceDeviceId: entry.sourceDeviceId, createdAt: entry.createdAt,
+                    pinned: entry.pinned, expiresAt: entry.expiresAt, hasThumbnail: true
+                )
+            }
+            return nil
+        }
+        return entry
     }
 
     // ── Clipboard actions ─────────────────────────────────────────────────────
@@ -477,10 +528,10 @@ final class AppState: ObservableObject {
             guard let payload = envelope.payload?.value as? [String: Any],
                   let id = payload["entry_id"] as? String,
                   let contentType = payload["content_type"] as? String,
-                  let content = payload["content"] as? String,
                   let sourceDeviceId = payload["source_device_id"] as? String,
                   let createdAt = payload["created_at"] as? String else { return }
 
+            let content = payload["content"] as? String ?? ""
             let entry = ClipboardEntryResponse(
                 id: id,
                 contentType: contentType,
@@ -492,20 +543,20 @@ final class AppState: ObservableObject {
                 hasThumbnail: payload["has_thumbnail"] as? Bool ?? contentType.hasPrefix("image/")
             )
 
-            let localId = KeychainService.shared.deviceId ?? ""
-            if !sourceDeviceId.isEmpty, sourceDeviceId == localId {
-                clipboardMonitor.rememberSyncedEntry(entry)
-            } else {
-                clipboardMonitor.autoSyncImagesEnabled = autoSyncImages
-                if autoApplyRemoteClipboard,
-                   clipboardMonitor.shouldAutoApplyRemote(entry, localDeviceId: localId) {
-                    clipboardMonitor.applyRemoteEntry(entry)
-                }
-            }
+            mergeClipboardEntry(entry)
 
-            clipboardHistory.insert(entry, at: 0)
-            let limit = max(10, min(historyLimit, 500))
-            if clipboardHistory.count > limit { clipboardHistory.removeLast() }
+            let localId = KeychainService.shared.deviceId ?? ""
+            Task {
+                if !sourceDeviceId.isEmpty, sourceDeviceId == localId {
+                    clipboardMonitor.rememberSyncedEntry(entry)
+                    return
+                }
+                clipboardMonitor.autoSyncImagesEnabled = autoSyncImages
+                guard autoApplyRemoteClipboard,
+                      clipboardMonitor.shouldAutoApplyRemote(entry, localDeviceId: localId) else { return }
+                guard let resolved = await resolveEntryForApply(entry) else { return }
+                clipboardMonitor.applyRemoteEntry(resolved)
+            }
 
             if showNotifications {
                 let preview = contentType.hasPrefix("image/") ? "Image received" : content

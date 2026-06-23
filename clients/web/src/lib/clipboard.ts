@@ -20,11 +20,30 @@ export async function fetchClipboardThumbnail(entryId: string): Promise<Blob | n
   const token = getAccessToken();
   if (!token) return null;
 
-  const res = await fetch(`${base}/api/v1/clipboard/${entryId}/thumbnail`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) return null;
-  return res.blob();
+  const delays = [0, 200, 500];
+  for (const delay of delays) {
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    const res = await fetch(`${base}/api/v1/clipboard/${entryId}/thumbnail`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) return res.blob();
+    if (res.status !== 404) return null;
+  }
+  return null;
+}
+
+const thumbnailCache = new Map<string, string>();
+
+export function getCachedThumbnailUrl(entryId: string): string | null {
+  return thumbnailCache.get(entryId) ?? null;
+}
+
+export function cacheThumbnailBlob(entryId: string, blob: Blob): string {
+  const existing = thumbnailCache.get(entryId);
+  if (existing) URL.revokeObjectURL(existing);
+  const url = URL.createObjectURL(blob);
+  thumbnailCache.set(entryId, url);
+  return url;
 }
 
 export async function fileToBase64(file: File): Promise<string> {

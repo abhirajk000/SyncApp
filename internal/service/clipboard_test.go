@@ -134,6 +134,18 @@ func (s *stubClipboardStore) SetPinned(ctx context.Context, id, userID uuid.UUID
 	return repository.ErrNotFound
 }
 
+func (s *stubClipboardStore) SetThumbnailKey(_ context.Context, id, userID uuid.UUID, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e.ID == id && e.UserID == userID {
+			e.ThumbnailKey = &key
+			return nil
+		}
+	}
+	return repository.ErrNotFound
+}
+
 func (s *stubClipboardStore) SumUnpinnedBytes(_ context.Context, userID uuid.UUID) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

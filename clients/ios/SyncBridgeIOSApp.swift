@@ -73,6 +73,9 @@ struct SyncBridgeIOSApp: App {
                 wsClient.onClipboardNew = { entry in
                     Task { await appState.handleRemoteClipboardPush(entry) }
                 }
+                wsClient.onClipboardPin = { entryId, pinned in
+                    appState.handleClipboardPin(entryId: entryId, pinned: pinned)
+                }
                 wsClient.onFilesUpdated = {
                     Task { await appState.refreshFiles() }
                 }

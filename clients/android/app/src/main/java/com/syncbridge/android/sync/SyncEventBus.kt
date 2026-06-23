@@ -8,9 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+data class ClipboardPinEvent(val entryId: String, val pinned: Boolean)
+
 object SyncEventBus {
     private val _clipboardNew = MutableSharedFlow<ClipboardEntry>(extraBufferCapacity = 16)
     val clipboardNew: SharedFlow<ClipboardEntry> = _clipboardNew.asSharedFlow()
+
+    private val _clipboardPin = MutableSharedFlow<ClipboardPinEvent>(extraBufferCapacity = 8)
+    val clipboardPin: SharedFlow<ClipboardPinEvent> = _clipboardPin.asSharedFlow()
 
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
@@ -38,6 +43,11 @@ object SyncEventBus {
 
     fun emitClipboard(entry: ClipboardEntry) {
         _clipboardNew.tryEmit(entry)
+    }
+
+    fun emitClipboardPin(entryId: String, pinned: Boolean) {
+        if (entryId.isBlank()) return
+        _clipboardPin.tryEmit(ClipboardPinEvent(entryId, pinned))
     }
 
     fun setConnected(value: Boolean) {

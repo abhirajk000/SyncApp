@@ -131,13 +131,23 @@ function AppShell() {
           window.dispatchEvent(new CustomEvent("syncbridge:clipboard-new", { detail: entry }));
           networkService.markSync();
 
+          const localId = ensureDeviceId();
+          if (entry.source_device_id !== localId) {
+            setLatestPopup((prev) => {
+              if (popupShownThisSession.current && prev === null) return prev;
+              return entry;
+            });
+            if (!popupShownThisSession.current) {
+              popupShownThisSession.current = true;
+            }
+          }
+
           const settings = loadClipboardSettings();
-          if (settings.showClipboardNotifications) {
+          if (settings.showClipboardNotifications && entry.source_device_id !== localId) {
             toastRef.current("Clipboard updated", "success");
           }
 
-          const localId = ensureDeviceId();
-          const hash = entry.content;
+          const hash = entry.content || entry.id;
           const recentLocalCopy = Date.now() - lastLocalCopyAtRef.current < 4000;
           const shouldApply =
             settings.autoApplyRemoteClipboard &&

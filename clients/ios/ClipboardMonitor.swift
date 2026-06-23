@@ -98,7 +98,7 @@ final class ClipboardMonitor {
     }
 
     func applyRemoteEntry(_ entry: ClipboardEntry) {
-        suppressUntil = Date().addingTimeInterval(2.5)
+        suppressUntil = Date().addingTimeInterval(0.5)
 
         let pb = UIPasteboard.general
 
@@ -146,7 +146,7 @@ final class ClipboardMonitor {
 
         debounceTask?.cancel()
         debounceTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            try? await Task.sleep(nanoseconds: 100_000_000)
             guard !Task.isCancelled else { return }
             let pb = UIPasteboard.general
             guard pb.changeCount != lastChangeCount else { return }

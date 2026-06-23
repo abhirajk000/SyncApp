@@ -68,7 +68,7 @@ final class ClipboardMonitor {
 
     /// Writes a clipboard entry received from another device into the local pasteboard.
     func applyRemoteEntry(_ entry: ClipboardEntryResponse) {
-        suppressUntil = Date().addingTimeInterval(3.0)
+        suppressUntil = Date().addingTimeInterval(0.5)
 
         DispatchQueue.main.async {
             let pb = NSPasteboard.general

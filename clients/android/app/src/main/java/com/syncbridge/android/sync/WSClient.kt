@@ -29,6 +29,9 @@ class WSClient(
     @Volatile private var running = false
     @Volatile private var replacingSocket = false
 
+    private var reconnectStep = 0
+    private val reconnectSteps = longArrayOf(1000, 2000, 5000, 10000)
+
     private val client = OkHttpClient.Builder()
         .pingInterval(30, TimeUnit.SECONDS)
         .build()
@@ -53,6 +56,7 @@ class WSClient(
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 reconnectJob?.cancel()
                 reconnectJob = null
+                reconnectStep = 0
                 setLive(true)
                 Log.d(TAG, "websocket open")
             }
@@ -75,6 +79,13 @@ class WSClient(
                             )
                             onClipboardNew(entry)
                             networkManager?.markSync()
+                        }
+                        "clipboard.pin" -> {
+                            val payload = json.optJSONObject("payload") ?: return
+                            SyncEventBus.emitClipboardPin(
+                                payload.optString("entry_id", ""),
+                                payload.optBoolean("pinned", false),
+                            )
                         }
                         "signal.peer" -> {
                             val payload = json.optJSONObject("payload") ?: return
@@ -126,20 +137,21 @@ class WSClient(
     private fun scheduleReconnect() {
         if (!running || reconnectJob?.isActive == true) return
         reconnectJob = scope.launch {
-            var backoff = 1000L
             while (running && !SyncEventBus.connected.value) {
-                delay(backoff)
+                val delay = reconnectSteps[reconnectStep.coerceAtMost(reconnectSteps.lastIndex)]
+                reconnectStep = (reconnectStep + 1).coerceAtMost(reconnectSteps.lastIndex)
+                delay(delay)
                 if (!running) return@launch
                 openSocket()
                 delay(2500)
                 if (SyncEventBus.connected.value) return@launch
-                backoff = minOf(backoff * 2, 30_000L)
             }
         }
     }
 
     fun disconnect() {
         running = false
+        reconnectStep = 0
         reconnectJob?.cancel()
         reconnectJob = null
         replacingSocket = true

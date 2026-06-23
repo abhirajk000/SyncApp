@@ -374,6 +374,20 @@ final class AppState: ObservableObject {
         clipboardHistory.insert(entry, at: 0)
     }
 
+    func handleClipboardPin(entryId: String, pinned: Bool) {
+        guard let idx = clipboardHistory.firstIndex(where: { $0.id == entryId }) else { return }
+        let existing = clipboardHistory[idx]
+        clipboardHistory[idx] = ClipboardEntry(
+            id: existing.id,
+            content: existing.content,
+            contentType: existing.contentType,
+            createdAt: existing.createdAt,
+            pinned: pinned,
+            hasThumbnail: existing.hasThumbnail,
+            sourceDeviceId: existing.sourceDeviceId
+        )
+    }
+
     func uploadImageData(_ data: Data, name: String) async {
         await uploadData(data, name: name, mime: "image/jpeg")
     }

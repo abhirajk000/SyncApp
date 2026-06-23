@@ -12,7 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.security.MessageDigest
+import com.syncbridge.android.util.resolveClipboardImageBytes
 
 /**
  * Shared local clipboard + screenshot upload logic for the foreground service.
@@ -59,7 +59,7 @@ class ClipboardSyncCoordinator(
     /** Read clipboard after returning from another app (e.g. copied text in Messages/SMS). */
     fun syncExternalClipboardOnResume() {
         if (suppressEcho) return
-        scheduleDebouncedClipboardRead(delayMs = 150)
+        scheduleDebouncedClipboardRead(delayMs = 100)
     }
 
     /** Manual refresh — sync local clipboard if changed. */
@@ -89,6 +89,44 @@ class ClipboardSyncCoordinator(
                 hasThumbnail = entry.hasThumbnail || entry.contentType.startsWith("image/"),
             ),
         )
+    }
+
+    /** Resolve thumbnail-only WS payloads before writing to system clipboard. */
+    suspend fun resolveEntryForApply(entry: ClipboardEntry): ClipboardEntry? {
+        if (!entry.contentType.startsWith("image/") || entry.content.isNotBlank()) {
+            return entry
+        }
+        val bytes = resolveClipboardImageBytes(api, entry) ?: return null
+        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return entry.copy(content = b64, hasThumbnail = true)
+    }
+
+    /** Fetch latest remote clipboard and apply on resume / app open. */
+    suspend fun catchUpRemoteClipboard(): Boolean {
+        if (!settings.autoApplyRemoteClipboard || !api.isAuthenticated) return false
+        val current = runCatching { api.fetchCurrentClipboard() }.getOrNull() ?: return false
+        if (current.sourceDeviceId == api.ensureDeviceId()) return false
+        if (!shouldAutoApplyRemote(current, forceCatchUp = true)) return false
+        val resolved = resolveEntryForApply(current) ?: return false
+        applyRemoteClip(resolved)
+        return true
+    }
+
+    fun handleRemoteClipboard(entry: ClipboardEntry) {
+        val localId = api.ensureDeviceId()
+        if (entry.sourceDeviceId.isNotBlank() && entry.sourceDeviceId == localId) {
+            rememberSyncedEntry(entry)
+            SyncEventBus.emitClipboard(entry)
+            return
+        }
+        scope.launch {
+            val resolved = resolveEntryForApply(entry) ?: entry
+            if (shouldAutoApplyRemote(resolved)) {
+                applyRemoteClip(resolved)
+            } else {
+                SyncEventBus.emitClipboard(resolved)
+            }
+        }
     }
 
     /** Whether incoming remote clipboard should be written to the system clipboard. */
@@ -182,7 +220,7 @@ class ClipboardSyncCoordinator(
         }
     }
 
-    private fun scheduleDebouncedClipboardRead(delayMs: Long = 400) {
+    private fun scheduleDebouncedClipboardRead(delayMs: Long = 100) {
         pendingReadRunnable?.let { mainHandler.removeCallbacks(it) }
         val runnable = Runnable {
             pendingReadRunnable = null
@@ -235,7 +273,7 @@ class ClipboardSyncCoordinator(
     companion object {
         private const val TAG = "ClipboardSync"
         private const val LOCAL_COPY_SUPPRESS_MS = 20_000L
-        private const val REMOTE_COPY_SUPPRESS_MS = 3_000L
+        private const val REMOTE_COPY_SUPPRESS_MS = 500L
         private const val POST_UPLOAD_SUPPRESS_MS = 5_000L
         private const val LOCAL_COPY_GUARD_MS = 4_000L
 

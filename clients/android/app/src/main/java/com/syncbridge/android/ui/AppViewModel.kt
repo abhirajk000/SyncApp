@@ -48,6 +48,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
+            SyncEventBus.clipboardPin.collect { event ->
+                _state.update { s ->
+                    s.copy(
+                        clipboardHistory = s.clipboardHistory.map { entry ->
+                            if (entry.id == event.entryId) entry.copy(pinned = event.pinned) else entry
+                        },
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
             SyncEventBus.connected.collect { connected ->
                 _state.update { it.copy(connected = connected) }
             }
@@ -95,7 +106,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun onAppResumed() {
         viewModelScope.launch {
             app.clipboardSync.syncExternalClipboardOnResume()
-            delay(400)
+            app.clipboardSync.catchUpRemoteClipboard()
             refreshAll(presentPopup = true)
         }
     }
@@ -125,7 +136,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(isRefreshing = true, error = null) }
             try {
                 app.clipboardSync.syncExternalClipboardOnResume()
-                delay(400)
+                app.clipboardSync.catchUpRemoteClipboard()
                 val history = api.fetchClipboardHistory()
                 val files = api.listFiles()
                 _state.update {

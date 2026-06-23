@@ -116,6 +116,16 @@ func (r *ClipboardRepository) Create(ctx context.Context, e *ClipboardEntry) err
 	)
 }
 
+// SetThumbnailKey stores the object key for a generated clipboard image preview.
+func (r *ClipboardRepository) SetThumbnailKey(ctx context.Context, id, userID uuid.UUID, key string) error {
+	const q = `
+		UPDATE clipboard_entries
+		SET    thumbnail_key = $3
+		WHERE  id = $1 AND user_id = $2`
+	_, err := r.pool.Exec(ctx, q, id, userID, key)
+	return err
+}
+
 // FindByID returns the entry for the given id belonging to userID.
 func (r *ClipboardRepository) FindByID(ctx context.Context, id, userID uuid.UUID) (*ClipboardEntry, error) {
 	const q = `

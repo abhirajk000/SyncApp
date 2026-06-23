@@ -17,7 +17,8 @@ export class SyncBridgeWS {
   private ws: WebSocket | null = null;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private backoffMs = 1000;
+  private backoffIndex = 0;
+  private readonly backoffSteps = [1000, 2000, 5000, 10000];
   private stopped = true;
   /** Ignore onclose from sockets replaced by a newer connect() call. */
   private generation = 0;
@@ -75,7 +76,7 @@ export class SyncBridgeWS {
 
     socket.onopen = () => {
       if (gen !== this.generation || this.stopped) return;
-      this.backoffMs = 1000;
+      this.backoffIndex = 0;
       this.onConnectionChange?.(true);
       this.startHeartbeat();
     };
@@ -123,12 +124,13 @@ export class SyncBridgeWS {
   private scheduleReconnect(): void {
     if (this.stopped) return;
     if (this.reconnectTimer) return;
+    const delay = this.backoffSteps[Math.min(this.backoffIndex, this.backoffSteps.length - 1)];
+    this.backoffIndex = Math.min(this.backoffIndex + 1, this.backoffSteps.length - 1);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       if (this.stopped) return;
-      this.backoffMs = Math.min(this.backoffMs * 2, 60_000);
       this.open();
-    }, this.backoffMs);
+    }, delay);
   }
 
   private clearHeartbeat(): void {
@@ -148,11 +150,16 @@ export class SyncBridgeWS {
 export function payloadToClipboardEntry(payload: unknown): import("./api").ClipboardEntry | null {
   if (!payload || typeof payload !== "object") return null;
   const p = payload as Record<string, unknown>;
-  if (typeof p.entry_id !== "string" || typeof p.content !== "string") return null;
+  if (typeof p.entry_id !== "string") return null;
+  const contentType = String(p.content_type ?? "text/plain");
+  const content = typeof p.content === "string" ? p.content : "";
+  const hasThumbnail = Boolean(p.has_thumbnail) || (contentType.startsWith("image/") && !content);
+  if (!content && !hasThumbnail) return null;
   return {
     id: p.entry_id,
-    content_type: String(p.content_type ?? "text/plain"),
-    content: p.content,
+    content_type: contentType,
+    content,
+    has_thumbnail: hasThumbnail,
     source_device_id: String(p.source_device_id ?? ""),
     pinned: Boolean(p.pinned),
     created_at: String(p.created_at ?? new Date().toISOString()),

@@ -41,8 +41,9 @@ class SyncClipboardService : Service() {
 
         if (app.api.isAuthenticated) {
             app.networkManager.start()
-            ws = WSClient(app.api, app.networkManager) { entry -> handleRemoteClipboard(entry) }
-                .also { it.connect() }
+            ws = WSClient(app.api, app.networkManager) { entry ->
+                handleRemoteClipboard(entry)
+            }.also { it.connect() }
         }
     }
 
@@ -66,18 +67,9 @@ class SyncClipboardService : Service() {
     private fun handleRemoteClipboard(entry: ClipboardEntry) {
         val app = application as SyncBridgeApp
         val localId = app.api.ensureDeviceId()
-        if (entry.sourceDeviceId.isNotBlank() && entry.sourceDeviceId == localId) {
-            coordinator.rememberSyncedEntry(entry)
-            SyncEventBus.emitClipboard(entry)
-            return
-        }
+        coordinator.handleRemoteClipboard(entry)
 
-        if (coordinator.shouldAutoApplyRemote(entry)) {
-            coordinator.applyRemoteClip(entry)
-        } else {
-            SyncEventBus.emitClipboard(entry)
-        }
-
+        if (entry.sourceDeviceId.isNotBlank() && entry.sourceDeviceId == localId) return
         if (!coordinator.settings.showClipboardNotifications) return
         val preview = if (entry.contentType.startsWith("image/")) {
             "Image received"

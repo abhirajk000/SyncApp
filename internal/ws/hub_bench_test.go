@@ -80,7 +80,7 @@ func BenchmarkEncode_ClipboardNew(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		if _, err := EncodeClipboardNew(
-			entryID, "text/plain", "Hello world", deviceID, 11,
+			entryID, "text/plain", "Hello world", deviceID, 11, false,
 			map[string]int64{deviceID: now.UnixNano()},
 			now,
 		); err != nil {

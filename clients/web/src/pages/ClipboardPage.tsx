@@ -96,8 +96,23 @@ export function PinnedPage() {
   }, [load]);
 
   useEffect(() => {
-    function onPin() {
-      load();
+    function onPin(e: Event) {
+      const detail = (e as CustomEvent<{ entry_id?: string; pinned?: boolean }>).detail;
+      const entryId = detail?.entry_id;
+      const pinned = detail?.pinned;
+      if (!entryId || pinned === undefined) {
+        load();
+        return;
+      }
+      setEntries((prev) => {
+        if (pinned) {
+          if (prev.some((x) => x.id === entryId)) {
+            return prev.map((x) => (x.id === entryId ? { ...x, pinned: true } : x));
+          }
+          return prev;
+        }
+        return prev.filter((x) => x.id !== entryId);
+      });
     }
     function onAppRefresh() {
       load();

@@ -35,7 +35,8 @@ final class WSClient: NSObject {
     private let queue = DispatchQueue(label: "com.syncbridge.wsclient", qos: .utility)
     private var task: URLSessionWebSocketTask?
     private var session: URLSession?
-    private var reconnectDelay: TimeInterval = 1
+    private var reconnectStep = 0
+    private let reconnectSteps: [TimeInterval] = [1, 2, 5, 10]
     private var reconnectTimer: DispatchWorkItem?
     private var heartbeatTimer: DispatchSourceTimer?
     private var pathMonitor: NWPathMonitor?
@@ -154,8 +155,8 @@ final class WSClient: NSObject {
 
     private func scheduleReconnect() {
         cancelReconnect()
-        let delay = reconnectDelay
-        reconnectDelay = min(reconnectDelay * 2, 60)
+        let delay = reconnectSteps[min(reconnectStep, reconnectSteps.count - 1)]
+        reconnectStep = min(reconnectStep + 1, reconnectSteps.count - 1)
 
         let item = DispatchWorkItem { [weak self] in
             self?.openSocket()
@@ -170,7 +171,7 @@ final class WSClient: NSObject {
     }
 
     private func resetBackoff() {
-        reconnectDelay = 1
+        reconnectStep = 0
     }
 
     // MARK: – Heartbeat

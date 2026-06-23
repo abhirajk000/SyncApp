@@ -227,9 +227,10 @@ func EncodeError(code, message string) ([]byte, error) {
 type ClipboardNewPayload struct {
 	EntryID        string           `json:"entry_id"`
 	ContentType    string           `json:"content_type"`
-	Content        string           `json:"content"`          // decrypted plaintext
+	Content        string           `json:"content"` // text inline; images omit (fetch via HTTP)
 	SourceDeviceID string           `json:"source_device_id"`
 	PlaintextSize  int              `json:"plaintext_size"`
+	HasThumbnail   bool             `json:"has_thumbnail,omitempty"`
 	VectorClock    map[string]int64 `json:"vector_clock"`
 	CreatedAt      time.Time        `json:"created_at"`
 }
@@ -243,6 +244,7 @@ type ClipboardNewPayload struct {
 func EncodeClipboardNew(
 	entryID, contentType, content, sourceDeviceID string,
 	plaintextSize int,
+	hasThumbnail bool,
 	vectorClock map[string]int64,
 	createdAt time.Time,
 ) ([]byte, error) {
@@ -252,6 +254,7 @@ func EncodeClipboardNew(
 		Content:        content,
 		SourceDeviceID: sourceDeviceID,
 		PlaintextSize:  plaintextSize,
+		HasThumbnail:   hasThumbnail,
 		VectorClock:    vectorClock,
 		CreatedAt:      createdAt,
 	})
