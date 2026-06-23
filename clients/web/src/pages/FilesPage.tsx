@@ -35,8 +35,15 @@ export function FilesPage() {
     function onFilesUpdated() {
       void load();
     }
+    function onAppRefresh() {
+      void load();
+    }
     window.addEventListener("syncbridge:files-updated", onFilesUpdated);
-    return () => window.removeEventListener("syncbridge:files-updated", onFilesUpdated);
+    window.addEventListener("syncbridge:app-refresh", onAppRefresh);
+    return () => {
+      window.removeEventListener("syncbridge:files-updated", onFilesUpdated);
+      window.removeEventListener("syncbridge:app-refresh", onAppRefresh);
+    };
   }, [load]);
 
   async function togglePin(file: FileEntry) {

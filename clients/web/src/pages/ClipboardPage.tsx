@@ -99,8 +99,15 @@ export function PinnedPage() {
     function onPin() {
       load();
     }
+    function onAppRefresh() {
+      load();
+    }
     window.addEventListener("syncbridge:clipboard-pin", onPin);
-    return () => window.removeEventListener("syncbridge:clipboard-pin", onPin);
+    window.addEventListener("syncbridge:app-refresh", onAppRefresh);
+    return () => {
+      window.removeEventListener("syncbridge:clipboard-pin", onPin);
+      window.removeEventListener("syncbridge:app-refresh", onAppRefresh);
+    };
   }, [load]);
 
   async function unpin(entry: ClipboardEntry) {

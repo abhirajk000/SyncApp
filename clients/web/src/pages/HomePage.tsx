@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import {
   ClipboardEntry,
   FileEntry,
@@ -21,20 +20,6 @@ import { relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
 
 const RECENT_FILES_LIMIT = 12;
-
-function HomeRefreshButton({ refreshing, onClick }: { refreshing: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      className="ds-home-refresh-btn"
-      onClick={onClick}
-      disabled={refreshing}
-      aria-label="Refresh sync"
-    >
-      <RefreshCw size={16} strokeWidth={2.25} className={refreshing ? "ds-spin" : ""} />
-    </button>
-  );
-}
 
 function HomeTextRow({
   entry,
@@ -187,12 +172,10 @@ export function HomePage() {
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (manual = false) => {
     if (!getAccessToken()) return;
-    if (manual) setRefreshing(true);
-    else setLoading(true);
+    if (!manual) setLoading(true);
     try {
       const [clip, fileData] = await Promise.all([
         fetchClipboardHistory(),
@@ -204,8 +187,7 @@ export function HomePage() {
     } catch {
       if (manual) toast("Could not refresh", "danger");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!manual) setLoading(false);
     }
   }, [toast]);
 
@@ -217,11 +199,17 @@ export function HomePage() {
     function onNew() {
       void load();
     }
+    function onAppRefresh(e: Event) {
+      const manual = (e as CustomEvent<{ manual?: boolean }>).detail?.manual ?? false;
+      void load(manual);
+    }
     window.addEventListener("syncbridge:clipboard-new", onNew);
     window.addEventListener("syncbridge:files-updated", onNew);
+    window.addEventListener("syncbridge:app-refresh", onAppRefresh);
     return () => {
       window.removeEventListener("syncbridge:clipboard-new", onNew);
       window.removeEventListener("syncbridge:files-updated", onNew);
+      window.removeEventListener("syncbridge:app-refresh", onAppRefresh);
     };
   }, [load]);
 
@@ -282,7 +270,6 @@ export function HomePage() {
   const header = (
     <div className="ds-home-toolbar">
       <OnlineDevicesBar />
-      <HomeRefreshButton refreshing={refreshing} onClick={() => void load(true)} />
     </div>
   );
 

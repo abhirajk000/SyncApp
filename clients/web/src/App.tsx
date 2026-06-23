@@ -56,6 +56,7 @@ function AppShell() {
   const showConnected = useStableConnection(liveConnected);
   const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
   const [copied, setCopied] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const popupShownThisSession = useRef(false);
   const { toast } = useToast();
@@ -215,6 +216,13 @@ function AppShell() {
     return <LoginPage onSuccess={onAuthed} />;
   }
 
+  function handleRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    window.dispatchEvent(new CustomEvent("syncbridge:app-refresh", { detail: { manual: true } }));
+    void networkService.refresh().finally(() => setRefreshing(false));
+  }
+
   function renderPage() {
     switch (nav) {
       case "clipboard":
@@ -241,7 +249,7 @@ function AppShell() {
   return (
     <AppLayout>
       <div className="ds-main">
-        <AppTopBar connected={showConnected} />
+        <AppTopBar connected={showConnected} refreshing={refreshing} onRefresh={handleRefresh} />
         <main className="ds-content">{renderPage()}</main>
       </div>
       <AppBottomNav
