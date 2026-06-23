@@ -35,7 +35,7 @@ export function PairQrPanel() {
   return (
     <AppCard>
       <p className="ds-card-desc" style={{ marginTop: 0 }}>
-        Scan this QR from SyncBridge on your phone or tablet. The device is trusted automatically.
+        Scan this QR from SyncBridge on your phone or tablet to add it to your account.
       </p>
       <div className="ds-pair-qr">
         {loading && !qrDataUrl ? (

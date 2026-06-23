@@ -2,6 +2,9 @@
 // Auth state and PIN unlock — mirrors macOS AppState / AuthService.
 
 import Foundation
+#if os(iOS)
+import UIKit
+#endif
 
 @MainActor
 final class AppState: ObservableObject {
@@ -10,8 +13,16 @@ final class AppState: ObservableObject {
     @Published var isAuthenticated = false
     @Published var errorMessage: String?
     @Published var latestClipboardPopup: ClipboardEntry?
+    @Published var files: [FileItem] = []
+    @Published var clipboardHistory: [ClipboardEntry] = []
+    @Published var uploads: [UploadProgressItem] = []
 
     private let clipboardMonitor = ClipboardMonitor()
+    /// At most one latest-clipboard popup per foreground session (not on every WS event).
+    private var latestPopupShownThisSession = false
+    @Published var isRefreshing = false
+    /// Clipboard changed while SyncBridge was inactive — iOS needs Paste tap or Allow permission.
+    @Published var clipboardPastePending = false
 
     var serverURL: String { Self.defaultServerURL }
 
@@ -28,6 +39,12 @@ final class AppState: ObservableObject {
         isAuthenticated = accessToken != nil
         clipboardMonitor.serverURL = serverURL
         clipboardMonitor.accessToken = accessToken
+        clipboardMonitor.onLocalSync = { [weak self] entry in
+            self?.mergeClipboardEntry(entry)
+        }
+        if isAuthenticated {
+            startClipboardMonitor()
+        }
     }
 
     func startClipboardMonitor() {
@@ -42,10 +59,60 @@ final class AppState: ObservableObject {
 
     func logout() {
         stopClipboardMonitor()
+        clipboardMonitor.resetPersistedState()
         accessTokenStorage = nil
         UserDefaults.standard.removeObject(forKey: Keys.refreshToken)
         isAuthenticated = false
         latestClipboardPopup = nil
+        latestPopupShownThisSession = false
+        clipboardHistory = []
+    }
+
+    func resetLatestPopupSession() {
+        latestPopupShownThisSession = false
+    }
+
+    func dismissLatestClipboardPopup() {
+        latestClipboardPopup = nil
+        latestPopupShownThisSession = true
+    }
+
+    func pairFromQr(_ raw: String) async {
+        guard let otp = parsePairingOtp(raw) else {
+            errorMessage = "Invalid pairing code"
+            return
+        }
+        do {
+            let result = try await AuthAPI.confirmPairing(
+                otp: otp,
+                deviceId: ensureDeviceId(),
+                deviceName: deviceDisplayName(),
+                serverURL: serverURL
+            )
+            accessTokenStorage = result.accessToken
+            UserDefaults.standard.set(result.refreshToken, forKey: Keys.refreshToken)
+            isAuthenticated = true
+            errorMessage = nil
+            clipboardMonitor.accessToken = result.accessToken
+            startClipboardMonitor()
+            latestPopupShownThisSession = false
+            await refreshClipboardHistory()
+            await refreshFiles()
+            await presentLatestClipboardPopupIfNeeded()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func parsePairingOtp(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let otp = json["otp"] as? String, otp.count == 6 {
+            return otp
+        }
+        if trimmed.count == 6, trimmed.allSatisfy(\.isNumber) { return trimmed }
+        return nil
     }
 
     func unlock(pin: String) async {
@@ -62,7 +129,11 @@ final class AppState: ObservableObject {
             errorMessage = nil
             clipboardMonitor.accessToken = result.accessToken
             startClipboardMonitor()
-            await loadLatestClipboard()
+            latestPopupShownThisSession = false
+            await syncForegroundClipboard()
+            await catchUpRemoteClipboard()
+            await presentLatestClipboardPopupIfNeeded()
+            await refreshAll()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -71,18 +142,352 @@ final class AppState: ObservableObject {
     func applyEntryToPasteboard(_ entry: ClipboardEntry?) {
         #if os(iOS)
         guard let entry else { return }
-        clipboardMonitor.applyRemoteEntry(entry)
+        Task { await applyEntryToPasteboardAsync(entry) }
         #endif
     }
 
-    func loadLatestClipboard() async {
+    private func applyEntryToPasteboardAsync(_ entry: ClipboardEntry) async {
+        guard let resolved = await resolveEntryForApply(entry) else { return }
+        clipboardMonitor.applyRemoteEntry(resolved)
+    }
+
+    private func resolveEntryForApply(_ entry: ClipboardEntry) async -> ClipboardEntry? {
+        if entry.contentType.hasPrefix("image/"),
+           entry.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            guard let token = accessToken else { return nil }
+            if let full = try? await ClipboardAPI.fetchEntry(
+                serverURL: serverURL,
+                accessToken: token,
+                id: entry.id
+            ),
+               !full.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return full
+            }
+            if let data = try? await ClipboardAPI.downloadThumbnail(
+                serverURL: serverURL,
+                accessToken: token,
+                entryId: entry.id
+            ),
+               let image = UIImage(data: data),
+               let encoded = ClipboardImageCodec.encodePasteboardImage(image) {
+                return ClipboardEntry(
+                    id: entry.id,
+                    content: encoded.0,
+                    contentType: encoded.1,
+                    createdAt: entry.createdAt,
+                    pinned: entry.pinned,
+                    hasThumbnail: true,
+                    sourceDeviceId: entry.sourceDeviceId
+                )
+            }
+            return nil
+        }
+        return entry
+    }
+
+    func clipboardMonitorRememberSynced(_ entry: ClipboardEntry) {
+        clipboardMonitor.rememberSyncedEntry(entry)
+    }
+
+    func shouldAutoApplyRemoteClipboard(_ entry: ClipboardEntry, forceCatchUp: Bool = false) -> Bool {
+        clipboardMonitor.shouldAutoApplyRemote(
+            entry,
+            localDeviceId: ensureDeviceId(),
+            forceCatchUp: forceCatchUp
+        )
+    }
+
+    /// Fetch latest remote clipboard and write to pasteboard (app open / resume).
+    @discardableResult
+    func catchUpRemoteClipboard() async -> Bool {
+        guard ClipboardSettings.autoApplyRemoteClipboard, let token = accessToken else { return false }
+
+        guard let current = try? await ClipboardCurrentAPI.fetchCurrent(serverURL: serverURL, accessToken: token) else {
+            return false
+        }
+
+        guard current.sourceDeviceId != ensureDeviceId() else { return false }
+        guard shouldAutoApplyRemoteClipboard(current, forceCatchUp: true) else { return false }
+
+        guard let resolved = await resolveEntryForApply(current) else { return false }
+        clipboardMonitor.applyRemoteEntry(resolved)
+        mergeClipboardEntry(resolved)
+        latestPopupShownThisSession = true
+        return true
+    }
+
+    /// Live WebSocket push while app is in foreground.
+    func handleRemoteClipboardPush(_ entry: ClipboardEntry) async {
+        mergeClipboardEntry(entry)
+        let localId = ensureDeviceId()
+        if !entry.sourceDeviceId.isEmpty, entry.sourceDeviceId == localId {
+            clipboardMonitorRememberSynced(entry)
+            return
+        }
+        guard shouldAutoApplyRemoteClipboard(entry) else { return }
+        guard let resolved = await resolveEntryForApply(entry) else { return }
+        clipboardMonitor.applyRemoteEntry(resolved)
+    }
+
+    /// Show centered popup once per open — latest item only (text or image, not both).
+    func presentLatestClipboardPopupIfNeeded() async {
+        guard !latestPopupShownThisSession, latestClipboardPopup == nil else { return }
         guard let token = accessToken else { return }
+
+        if ClipboardSettings.autoApplyRemoteClipboard {
+            if await catchUpRemoteClipboard() { return }
+        }
+
         do {
-            let entry = try await ClipboardAPI.fetchCurrent(serverURL: serverURL, accessToken: token)
+            let entry = try await ClipboardCurrentAPI.fetchCurrent(serverURL: serverURL, accessToken: token)
+            let localId = ensureDeviceId()
+            if entry.sourceDeviceId == localId { return }
             latestClipboardPopup = entry
-            applyEntryToPasteboard(entry)
         } catch {
             // No clipboard yet.
+        }
+    }
+
+    func refreshAll() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await syncForegroundClipboard()
+        await refreshClipboardHistory()
+        await refreshFiles()
+    }
+
+    /// Sync when pasteboard changed + latest screenshot (no read if clipboard unchanged).
+    func syncForegroundClipboard() async {
+        let synced = await clipboardMonitor.syncIfPasteboardChanged()
+        clipboardPastePending = !synced && clipboardMonitor.hasPendingPasteboardChange
+        await ScreenshotSync.syncLatestScreenshot { [weak self] content, contentType in
+            guard let self, let token = self.accessToken else { return }
+            let entry = try await ClipboardAPI.syncClipboard(
+                serverURL: self.serverURL,
+                accessToken: token,
+                content: content,
+                contentType: contentType
+            )
+            self.mergeClipboardEntry(entry)
+        }
+    }
+
+    func uploadFromPasteProviders(_ providers: [NSItemProvider]) async {
+        await clipboardMonitor.uploadFromItemProviders(providers)
+        clipboardPastePending = clipboardMonitor.hasPendingPasteboardChange
+    }
+
+    func requestPasteAccess() async {
+        let ok = await clipboardMonitor.syncFromClipboardNow()
+        if !ok {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            let retry = await clipboardMonitor.syncFromClipboardNow()
+            clipboardPastePending = !retry && clipboardMonitor.hasPendingPasteboardChange
+            if retry { await refreshClipboardHistory() }
+            return
+        }
+        clipboardPastePending = false
+        await refreshClipboardHistory()
+    }
+
+    func syncClipboardNow() {
+        Task { await requestPasteAccess() }
+    }
+
+    func refreshFiles() async {
+        guard let token = accessToken else { return }
+        do {
+            files = try await FileAPI.listFiles(serverURL: serverURL, accessToken: token)
+        } catch {}
+    }
+
+    func refreshClipboardHistory() async {
+        guard let token = accessToken else { return }
+        do {
+            clipboardHistory = try await ClipboardAPI.fetchHistory(
+                serverURL: serverURL,
+                accessToken: token
+            )
+        } catch {}
+    }
+
+    func sendText(_ text: String) async {
+        let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty, let token = accessToken else { return }
+        do {
+            let entry = try await ClipboardAPI.syncText(
+                serverURL: serverURL,
+                accessToken: token,
+                content: content
+            )
+            mergeClipboardEntry(entry)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func pinClipboard(_ entry: ClipboardEntry, pinned: Bool) async {
+        guard let token = accessToken else { return }
+        do {
+            try await ClipboardAPI.pinEntry(
+                serverURL: serverURL,
+                accessToken: token,
+                id: entry.id,
+                pinned: pinned
+            )
+            await refreshClipboardHistory()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteClipboard(_ entry: ClipboardEntry) async {
+        guard let token = accessToken else { return }
+        do {
+            try await ClipboardAPI.deleteEntry(
+                serverURL: serverURL,
+                accessToken: token,
+                id: entry.id
+            )
+            clipboardHistory.removeAll { $0.id == entry.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func copyEntry(_ entry: ClipboardEntry) {
+        Task { await copyEntryAsync(entry) }
+    }
+
+    private func copyEntryAsync(_ entry: ClipboardEntry) async {
+        #if os(iOS)
+        guard let resolved = await resolveEntryForApply(entry) else {
+            errorMessage = "Image unavailable"
+            return
+        }
+        clipboardMonitor.applyRemoteEntry(resolved)
+        #endif
+    }
+
+    func mergeClipboardEntry(_ entry: ClipboardEntry) {
+        clipboardHistory.removeAll { $0.id == entry.id }
+        clipboardHistory.insert(entry, at: 0)
+    }
+
+    func uploadImageData(_ data: Data, name: String) async {
+        await uploadData(data, name: name, mime: "image/jpeg")
+    }
+
+    func uploadFiles(_ urls: [URL]) async {
+        for url in urls {
+            guard url.startAccessingSecurityScopedResource() else { continue }
+            defer { url.stopAccessingSecurityScopedResource() }
+            if let data = try? Data(contentsOf: url) {
+                let mime = mimeType(for: url)
+                await uploadData(data, name: url.lastPathComponent, mime: mime)
+            }
+        }
+    }
+
+    private func uploadData(_ data: Data, name: String, mime: String) async {
+        guard let token = accessToken else { return }
+        let uploadId = UUID()
+        var progress = UploadProgressItem(id: uploadId, name: name, progress: 0.1, statusLabel: "10%")
+        uploads.append(progress)
+        do {
+            try await FileAPI.uploadData(
+                serverURL: serverURL,
+                accessToken: token,
+                name: name,
+                mimeType: mime,
+                data: data
+            )
+            if let idx = uploads.firstIndex(where: { $0.id == uploadId }) {
+                uploads[idx].progress = 1
+                uploads[idx].statusLabel = "Done"
+            }
+            await refreshFiles()
+        } catch {
+            if let idx = uploads.firstIndex(where: { $0.id == uploadId }) {
+                uploads[idx].progress = 0
+                uploads[idx].statusLabel = "Failed"
+            }
+            errorMessage = error.localizedDescription
+        }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        uploads.removeAll { $0.id == uploadId && $0.statusLabel == "Done" }
+    }
+
+    private func mimeType(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        switch ext {
+        case "jpg", "jpeg": return "image/jpeg"
+        case "png": return "image/png"
+        case "pdf": return "application/pdf"
+        default: return "application/octet-stream"
+        }
+    }
+
+    func pinFile(_ file: FileItem, pinned: Bool) async {
+        guard let token = accessToken else { return }
+        do {
+            try await FileAPI.pinFile(serverURL: serverURL, accessToken: token, fileId: file.id, pinned: pinned)
+            await refreshFiles()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteFile(_ file: FileItem) async {
+        guard let token = accessToken else { return }
+        do {
+            if file.isPinned {
+                try await FileAPI.pinFile(serverURL: serverURL, accessToken: token, fileId: file.id, pinned: false)
+            }
+            try await FileAPI.deleteFile(serverURL: serverURL, accessToken: token, fileId: file.id)
+            files.removeAll { $0.id == file.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func downloadFile(_ file: FileItem) async {
+        guard let token = accessToken else { return }
+        do {
+            let data = try await FileAPI.downloadData(serverURL: serverURL, accessToken: token, fileId: file.id)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(file.name)
+            try data.write(to: url)
+            #if os(iOS)
+            await MainActor.run {
+                let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let root = scene.windows.first?.rootViewController {
+                    root.present(activity, animated: true)
+                }
+            }
+            #endif
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func copyFileToClipboard(_ file: FileItem) async {
+        guard let token = accessToken else { return }
+        do {
+            let data = try await FileAPI.downloadData(serverURL: serverURL, accessToken: token, fileId: file.id)
+            #if os(iOS)
+            await MainActor.run {
+                let pb = UIPasteboard.general
+                if file.mimeType.hasPrefix("image/"), let image = UIImage(data: data) {
+                    pb.image = image
+                } else if file.mimeType.hasPrefix("text/") || file.mimeType == "application/json",
+                          let text = String(data: data, encoding: .utf8) {
+                    pb.string = text
+                }
+            }
+            #endif
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -110,10 +515,6 @@ final class AppState: ObservableObject {
         static let refreshToken = "com.syncbridge.refreshToken"
     }
 }
-
-#if os(iOS)
-import UIKit
-#endif
 
 // ── Auth API ─────────────────────────────────────────────────────────────────
 
@@ -187,15 +588,39 @@ private enum AuthAPI {
 
         return try JSONDecoder().decode(AuthResponse.self, from: data)
     }
+
+    static func confirmPairing(
+        otp: String,
+        deviceId: String,
+        deviceName: String,
+        serverURL: String
+    ) async throws -> AuthResponse {
+        let base = serverURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: "\(base)/api/v1/pairing/confirm") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "otp": otp,
+            "device_id": deviceId,
+            "device_name": deviceName,
+            "platform": "ios",
+        ])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(AuthResponse.self, from: data)
+    }
 }
 
 private struct APIErrorBody: Decodable {
     let error: String
 }
 
-// ── Clipboard API ─────────────────────────────────────────────────────────────
-
-private enum ClipboardAPI {
+private enum ClipboardCurrentAPI {
     static func fetchCurrent(serverURL: String, accessToken: String) async throws -> ClipboardEntry {
         let base = serverURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: "\(base)/api/v1/clipboard/current") else {
@@ -211,12 +636,7 @@ private enum ClipboardAPI {
         }
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-        return ClipboardEntry(
-            id: json["id"] as? String ?? UUID().uuidString,
-            content: json["content"] as? String ?? "",
-            contentType: json["content_type"] as? String ?? "text/plain",
-            createdAt: json["created_at"] as? String ?? ISO8601DateFormatter().string(from: Date()),
-            pinned: json["pinned"] as? Bool ?? false
-        )
+        guard let entry = ClipboardAPI.parseEntry(json) else { throw URLError(.cannotParseResponse) }
+        return entry
     }
 }

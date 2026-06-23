@@ -20,7 +20,7 @@ export function NetworkPage({ onBack }: Props) {
 
   const allDevices = connectedDevices(net.devices, net.peers);
   const nearbyName = net.nearbyAlert
-    ? net.devices.find((d) => d.id === net.nearbyAlert?.device_id)?.name ?? "A trusted device"
+    ? net.devices.find((d) => d.id === net.nearbyAlert?.device_id)?.name ?? "Another device"
     : null;
 
   return (

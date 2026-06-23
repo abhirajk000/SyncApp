@@ -111,6 +111,21 @@ final class APIClient {
         try FileManager.default.moveItem(at: tempURL, to: destination)
     }
 
+    func downloadClipboardThumbnail(entryId: String) async -> Data? {
+        guard let url = URL(string: "\(baseURL)/api/v1/clipboard/\(entryId)/thumbnail") else { return nil }
+        var req = URLRequest(url: url)
+        if let token = keychain.accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        do {
+            let (data, response) = try await session.data(for: req)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+            return data
+        } catch {
+            return nil
+        }
+    }
+
     func downloadThumbnailData(fileId: String) async -> Data? {
         guard let url = URL(string: "\(baseURL)/api/v1/files/\(fileId)/thumbnail") else { return nil }
         var req = URLRequest(url: url)

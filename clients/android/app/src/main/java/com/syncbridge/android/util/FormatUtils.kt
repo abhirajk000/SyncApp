@@ -39,3 +39,19 @@ fun truncate(text: String, max: Int): String {
     val t = text.trim()
     return if (t.length > max) t.take(max) + "…" else t.ifEmpty { "(empty)" }
 }
+
+fun stripHtml(html: String): String =
+    html.replace(Regex("<[^>]+>"), " ")
+        .replace(Regex("&nbsp;"), " ")
+        .replace(Regex("&amp;"), "&")
+        .replace(Regex("&lt;"), "<")
+        .replace(Regex("&gt;"), ">")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+fun clipboardDisplayText(content: String, max: Int = 500): String {
+    val raw = content.trim()
+    if (raw.isEmpty()) return "(empty)"
+    val cleaned = if (raw.contains('<') && raw.contains('>')) stripHtml(raw) else raw
+    return truncate(cleaned, max)
+}

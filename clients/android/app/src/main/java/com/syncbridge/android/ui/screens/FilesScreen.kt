@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,10 +21,9 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Movie
-import androidx.compose.material3.FilterChip
+import com.syncbridge.android.ui.components.SegmentedTabs
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,28 +31,37 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.FileEntry
+import androidx.compose.material.icons.outlined.Folder
 import com.syncbridge.android.ui.components.AppEmptyState
 import com.syncbridge.android.ui.components.AppSectionTitle
 import com.syncbridge.android.ui.components.GlassListRow
-import com.syncbridge.android.ui.components.GlassSurface
+import com.syncbridge.android.ui.components.ItemActionMenu
+import com.syncbridge.android.ui.components.SurfaceCard
 import com.syncbridge.android.ui.components.TransferBadge
 import com.syncbridge.android.ui.theme.SyncTokens
+import com.syncbridge.android.util.canCopyFile
+import com.syncbridge.android.util.copyFileToClipboard
+import com.syncbridge.android.util.downloadFileToDevice
 import com.syncbridge.android.util.formatBytes
 import com.syncbridge.android.util.relativeTime
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private enum class FileTab { Temporary, Pinned }
@@ -62,28 +71,35 @@ fun FilesScreen(
     files: List<FileEntry>,
     api: ApiClient,
     onTogglePin: (FileEntry) -> Unit,
+    onDelete: (FileEntry) -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(FileTab.Temporary) }
     val filtered = files.filter { if (tab == FileTab.Pinned) it.isPinned else !it.isPinned }
 
-    Column(Modifier.padding(SyncTokens.Space4)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space2)) {
-            FilterChip(
-                selected = tab == FileTab.Temporary,
-                onClick = { tab = FileTab.Temporary },
-                label = { Text("Temporary") },
-            )
-            FilterChip(
-                selected = tab == FileTab.Pinned,
-                onClick = { tab = FileTab.Pinned },
-                label = { Text("Pinned") },
-            )
-        }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(
+                PaddingValues(
+                    start = SyncTokens.Space4,
+                    end = SyncTokens.Space4,
+                    top = SyncTokens.Space4,
+                    bottom = SyncTokens.Space10 + SyncTokens.DockHeight,
+                ),
+            ),
+    ) {
+        SegmentedTabs(
+            options = listOf("Temporary", "Pinned"),
+            selectedIndex = if (tab == FileTab.Temporary) 0 else 1,
+            onSelect = { tab = if (it == 0) FileTab.Temporary else FileTab.Pinned },
+            modifier = Modifier.padding(bottom = SyncTokens.Space4),
+        )
 
         AppSectionTitle(if (tab == FileTab.Pinned) "Pinned files" else "Temporary files")
 
         if (filtered.isEmpty()) {
             AppEmptyState(
+                icon = Icons.Outlined.Folder,
                 title = if (tab == FileTab.Pinned) "No pinned files" else "No files yet",
                 description = "Send files from the Send tab or receive them from other devices.",
             )
@@ -95,13 +111,18 @@ fun FilesScreen(
                 modifier = Modifier.padding(top = SyncTokens.Space3),
             ) {
                 items(filtered, key = { it.id }) { file ->
-                    FileGridCard(file = file, api = api, onTogglePin = onTogglePin)
+                    FileGridCard(
+                        file = file,
+                        api = api,
+                        onTogglePin = onTogglePin,
+                        onDelete = onDelete,
+                    )
                 }
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(SyncTokens.Space2)) {
                 filtered.forEach { file ->
-                    PinnedFileRow(file, onTogglePin)
+                    PinnedFileRow(file, api, onTogglePin, onDelete)
                 }
             }
         }
@@ -109,7 +130,16 @@ fun FilesScreen(
 }
 
 @Composable
-private fun PinnedFileRow(file: FileEntry, onTogglePin: (FileEntry) -> Unit) {
+private fun PinnedFileRow(
+    file: FileEntry,
+    api: ApiClient,
+    onTogglePin: (FileEntry) -> Unit,
+    onDelete: (FileEntry) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val ready = file.status == "ready"
+
     GlassListRow {
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -124,7 +154,24 @@ private fun PinnedFileRow(file: FileEntry, onTogglePin: (FileEntry) -> Unit) {
                 )
                 TransferBadge(transferMode = file.transferMode)
             }
-            OutlinedButton(onClick = { onTogglePin(file) }) { Text("Unpin") }
+            ItemActionMenu(
+                showDownload = ready,
+                showCopy = canCopyFile(file),
+                showPin = true,
+                showDelete = true,
+                isPinned = true,
+                onDownload = {
+                    scope.launch {
+                        runCatching { downloadFileToDevice(context, api, file) }
+                    }
+                },
+                onCopy = {
+                    scope.launch {
+                        runCatching { copyFileToClipboard(context, api, file) }
+                    }
+                },
+                onPin = { onTogglePin(file) },
+            )
         }
     }
 }
@@ -134,19 +181,51 @@ fun FileGridCard(
     file: FileEntry,
     api: ApiClient,
     onTogglePin: (FileEntry) -> Unit,
+    onDelete: (FileEntry) -> Unit = {},
+    compact: Boolean = false,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val ready = file.status == "ready"
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(SyncTokens.Space2),
+        verticalArrangement = Arrangement.spacedBy(if (compact) SyncTokens.Space1 else SyncTokens.Space2),
     ) {
-        GlassSurface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f),
-            shape = RoundedCornerShape(SyncTokens.RadiusXl),
-            elevation = 6.dp,
         ) {
-            FilePreviewContent(file = file, api = api)
+            SurfaceCard(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(if (compact) SyncTokens.RadiusLg else SyncTokens.RadiusXl),
+            ) {
+                FilePreviewContent(file = file, api = api)
+            }
+            ItemActionMenu(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(SyncTokens.Space2)
+                    .zIndex(2f),
+                showDownload = ready,
+                showCopy = canCopyFile(file),
+                showPin = true,
+                showDelete = true,
+                isPinned = file.isPinned,
+                onDownload = {
+                    scope.launch {
+                        runCatching { downloadFileToDevice(context, api, file) }
+                    }
+                },
+                onCopy = {
+                    scope.launch {
+                        runCatching { copyFileToClipboard(context, api, file) }
+                    }
+                },
+                onPin = { onTogglePin(file) },
+                onDelete = { onDelete(file) },
+            )
         }
         Text(
             file.name,
@@ -157,9 +236,8 @@ fun FileGridCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = SyncTokens.Space1),
         )
-        TransferBadge(transferMode = file.transferMode)
-        OutlinedButton(onClick = { onTogglePin(file) }, modifier = Modifier.padding(bottom = SyncTokens.Space1)) {
-            Text("Pin", fontSize = 11.sp)
+        if (!compact) {
+            TransferBadge(transferMode = file.transferMode)
         }
     }
 }

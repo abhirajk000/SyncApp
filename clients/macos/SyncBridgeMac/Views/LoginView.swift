@@ -6,6 +6,7 @@ import SwiftUI
 struct LoginView: View {
 
     @EnvironmentObject var appState: AppState
+    @Environment(\.appPresentationMode) private var presentationMode
 
     @State private var pin = ""
     @State private var isLoading = false
@@ -41,13 +42,27 @@ struct LoginView: View {
                         }
                     }
                 }
-                .frame(maxWidth: 360)
-                .padding(.horizontal, DS.Space.xl)
+                .padding(.horizontal, DS.Space.lg)
+
+                if presentationMode == .popover {
+                    Button {
+                        appState.requestOpenMainWindow()
+                    } label: {
+                        Label("Open as App", systemImage: "macwindow")
+                            .font(DS.Font.body().weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DS.Space.sm)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(DS.Color.primary)
+                    .padding(.horizontal, DS.Space.lg)
+                }
 
                 Spacer()
             }
             .padding(.top, DS.Space.xxl)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { appState.errorMessage = nil }
     }
 

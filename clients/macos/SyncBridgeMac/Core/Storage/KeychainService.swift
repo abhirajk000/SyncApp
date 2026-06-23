@@ -1,14 +1,13 @@
 // KeychainService.swift
-// Secure credential storage backed by the macOS Keychain.
+// Local credential storage for the macOS client.
 //
-// All items are stored in the app's own keychain group with
-// kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly so they are available
-// after login but never migrate to iCloud backup or other devices.
+// Uses app-scoped UserDefaults instead of the system Keychain so unsigned /
+// ad-hoc builds do not trigger repeated "login keychain password" prompts after
+// each reinstall. (Android uses SharedPreferences for the same data.)
 
 import Foundation
-import Security
 
-/// Keys used to identify items stored in the Keychain.
+/// Keys used to identify stored credentials.
 enum KeychainKey: String {
     case accessToken   = "com.syncbridge.accessToken"
     case refreshToken  = "com.syncbridge.refreshToken"
@@ -19,61 +18,41 @@ enum KeychainKey: String {
     case trustedUntil  = "com.syncbridge.trustedUntil"
 }
 
-/// Thread-safe keychain accessor.
+/// Thread-safe credential accessor.
 final class KeychainService {
     static let shared = KeychainService()
+
+    private let defaults = UserDefaults(suiteName: "com.syncbridge.mac.credentials")
+        ?? UserDefaults.standard
+    private let keyPrefix = "credential."
+
     private init() {}
 
     // ── Write ─────────────────────────────────────────────────────────────────
 
     @discardableResult
     func set(_ value: String, for key: KeychainKey) -> Bool {
-        guard let data = value.data(using: .utf8) else { return false }
-
-        let query: [String: Any] = [
-            kSecClass as String:             kSecClassGenericPassword,
-            kSecAttrAccount as String:       key.rawValue,
-            kSecAttrAccessible as String:    kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-            kSecValueData as String:         data
-        ]
-
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        return status == errSecSuccess
+        defaults.set(value, forKey: storageKey(key))
+        return true
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
 
     func get(_ key: KeychainKey) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String:       kSecClassGenericPassword,
-            kSecAttrAccount as String: key.rawValue,
-            kSecReturnData as String:  true,
-            kSecMatchLimit as String:  kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let str = String(data: data, encoding: .utf8) else { return nil }
-        return str
+        defaults.string(forKey: storageKey(key))
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
 
     @discardableResult
     func delete(_ key: KeychainKey) -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String:       kSecClassGenericPassword,
-            kSecAttrAccount as String: key.rawValue
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+        defaults.removeObject(forKey: storageKey(key))
+        return true
     }
 
     // ── Bulk operations ───────────────────────────────────────────────────────
 
-    /// Removes all SyncBridge credentials from Keychain (on logout).
+    /// Removes all SyncBridge credentials (on logout).
     func clearAll() {
         let keys: [KeychainKey] = [
             .accessToken, .refreshToken, .userId,
@@ -141,5 +120,9 @@ final class KeychainService {
 
     var isAuthenticated: Bool {
         accessToken != nil && deviceId != nil
+    }
+
+    private func storageKey(_ key: KeychainKey) -> String {
+        keyPrefix + key.rawValue
     }
 }

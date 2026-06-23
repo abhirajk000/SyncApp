@@ -18,13 +18,19 @@
     <key>CFBundleShortVersionString</key>
     <string>1.0.0</string>
 
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+
     <!-- Hide from Dock and App Switcher — menu-bar-only app -->
     <key>LSUIElement</key>
     <true/>
 
     <!-- Minimum macOS version -->
     <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
+    <string>14.0</string>
 
     <!-- Privacy strings (macOS 14+ clipboard access prompt) -->
     <key>NSPasteboardUsageDescription</key>

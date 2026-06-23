@@ -3,13 +3,11 @@
 //
 // Layout:
 //   ┌──────────────────────────────────────┐
-//   │  ● SyncBridge   [status]    [⚙]  [→] │  header
+//   │  ● SyncBridge   [status]        [⋯]  │  header
 //   ├──────────────────────────────────────┤
-//   │  📋 Clipboard  /  📁 Files  / 💻 Dev │  tab bar
+//   │  [Home][Pinned]  (Send)  [Files][⚙]│  dock nav (web style, top)
 //   ├──────────────────────────────────────┤
-//   │                                      │
-//   │           tab content                │  340 × 400
-//   │                                      │
+//   │           tab content                │
 //   └──────────────────────────────────────┘
 
 import AppKit
@@ -18,42 +16,49 @@ import SwiftUI
 struct MenuBarView: View {
 
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab: Tab = .clipboard
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appPresentationMode) private var presentationMode
+    @State private var selectedTab: AppNavTab = .home
 
-    enum Tab: String, CaseIterable {
-        case clipboard = "Clipboard"
-        case pinned    = "Pinned"
-        case send      = "Send"
-        case files     = "Files"
-
-        var icon: String {
-            switch self {
-            case .clipboard: return "doc.on.clipboard"
-            case .pinned:    return "pin.fill"
-            case .send:      return "paperplane.fill"
-            case .files:     return "folder.fill"
-            }
-        }
-    }
+    private var isWindow: Bool { presentationMode == .window }
 
     var body: some View {
         ZStack {
-            Group {
-                if case .loggedOut = appState.authState {
-                    LoginView()
-                        .frame(width: 340, height: 520)
-                } else {
-                    mainContent
-                        .frame(width: 340, height: 520)
+                Group {
+                    if case .loggedOut = appState.authState {
+                        LoginView()
+                    } else {
+                        mainContent
+                    }
                 }
-            }
+                .frame(
+                    width: isWindow ? nil : MenuBarLayout.width,
+                    height: isWindow ? nil : MenuBarLayout.popoverContentHeight
+                )
+                .frame(
+                    maxWidth: isWindow ? .infinity : nil,
+                    maxHeight: isWindow ? .infinity : nil
+                )
+                .clipped()
 
-            if let entry = appState.latestClipboardPopup {
-                LatestClipboardPopupView(entry: entry) {
-                    appState.dismissLatestClipboardPopup()
+                if let entry = appState.latestClipboardPopup {
+                    LatestClipboardPopupView(entry: entry) {
+                        appState.dismissLatestClipboardPopup()
+                    }
+                    .environmentObject(appState)
+                    .frame(
+                        width: isWindow ? nil : MenuBarLayout.width,
+                        height: isWindow ? nil : MenuBarLayout.popoverContentHeight
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                 }
             }
-        }
+        .frame(
+            minWidth: isWindow ? MenuBarLayout.windowMinWidth : MenuBarLayout.width,
+            minHeight: isWindow ? MenuBarLayout.windowMinHeight : MenuBarLayout.height
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: – Main content (authenticated)
@@ -64,9 +69,10 @@ struct MenuBarView: View {
             VStack(spacing: 0) {
                 header
                 Divider().opacity(0.35)
-                tabBar
-                Divider().opacity(0.35)
+                DockNavBar(selected: $selectedTab)
                 tabContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(height: isWindow ? nil : MenuBarLayout.contentHeight)
             }
         }
     }
@@ -78,45 +84,50 @@ struct MenuBarView: View {
             Image(nsImage: NSImage(named: "AppLogo") ?? NSImage())
                 .resizable()
                 .scaledToFit()
-                .frame(width: 24, height: 24)
+                .frame(width: 20, height: 20)
 
             Text("SyncBridge")
                 .font(DS.Font.headline())
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
 
-            Spacer()
+            Spacer(minLength: 4)
 
             statusBadge
 
-            Button {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            Menu {
+                Button {
+                    appState.requestOpenMainWindow()
+                } label: {
+                    Label("Open App Window", systemImage: "macwindow")
+                }
+                Divider()
+                Button {
+                    Task { await appState.initiatePairing() }
+                } label: {
+                    Label("Pair device", systemImage: "qrcode.viewfinder")
+                }
+                Divider()
+                Button(role: .destructive) {
+                    Task { await appState.logout() }
+                } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
             } label: {
-                Image(systemName: "gearshape")
-                    .help("Settings")
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-
-            Button {
-                Task { await appState.initiatePairing() }
-            } label: {
-                Image(systemName: "qrcode.viewfinder")
-                    .help("Pair a new device")
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                Task { await appState.logout() }
-            } label: {
-                Image(systemName: "rectangle.portrait.and.arrow.right")
-                    .help("Sign out")
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .menuStyle(.borderlessButton)
+            .fixedSize()
         }
-        .padding(.horizontal, DS.Space.lg)
-        .padding(.vertical, DS.Space.md)
-        .background(.ultraThinMaterial)
+        .frame(height: MenuBarLayout.headerHeight)
+        .padding(.horizontal, DS.Space.md)
+        .background(DS.Color.cardAdaptive(colorScheme).opacity(0.6))
         .overlay(alignment: .bottom) {
-            Rectangle().fill(DS.Glass.border.opacity(0.35)).frame(height: 1)
+            Rectangle()
+                .fill(DS.Color.borderAdaptive(colorScheme).opacity(0.25))
+                .frame(height: 1)
         }
     }
 
@@ -149,46 +160,12 @@ struct MenuBarView: View {
         .menuStyle(.borderlessButton)
     }
 
-    // MARK: – Tab bar
-
-    private var tabBar: some View {
-        HStack(spacing: DS.Space.sm) {
-            ForEach(Tab.allCases, id: \.self) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    VStack(spacing: DS.Space.xs) {
-                        Image(systemName: tab.icon)
-                        Text(tab.rawValue)
-                            .font(DS.Font.label())
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .foregroundStyle(selectedTab == tab ? DS.Color.activeGreen : .secondary)
-                    .background {
-                        if selectedTab == tab {
-                            Capsule()
-                                .fill(DS.Color.activeGreenBg.opacity(0.92))
-                                .overlay(Capsule().stroke(DS.Color.activeGreen.opacity(0.35)))
-                        } else {
-                            Capsule().fill(Color.clear)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, DS.Space.sm)
-        .padding(.vertical, DS.Space.sm)
-        .background(.ultraThinMaterial)
-    }
-
     // MARK: – Tab content
 
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
-        case .clipboard:
+        case .home:
             HomeView(onSeeAllFiles: { selectedTab = .files })
         case .pinned:
             PinnedClipboardView()
@@ -196,6 +173,8 @@ struct MenuBarView: View {
             SendTabView()
         case .files:
             FilesView()
+        case .settings:
+            SettingsView(embedded: true)
         }
     }
 }
@@ -243,23 +222,29 @@ struct FilesView: View {
                 emptyState
             } else if fileTab == .temporary {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: DS.Space.md)], spacing: DS.Space.md) {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 88), spacing: DS.Space.sm)],
+                        spacing: DS.Space.sm
+                    ) {
                         ForEach(temporary) { file in
                             FileGridItemView(file: file)
                         }
                     }
                     .padding(DS.Space.md)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .task { await appState.refreshFiles() }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(pinned) { file in
                             FileRowView(file: file)
-                            Divider()
+                            Divider().opacity(0.35)
                         }
                     }
+                    .padding(.horizontal, DS.Space.sm)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .task { await appState.refreshFiles() }
             }
 
@@ -295,6 +280,11 @@ struct FileRowView: View {
     @EnvironmentObject var appState: AppState
     let file: FileResponse
 
+    private var ready: Bool { file.status == "ready" }
+    private var canCopy: Bool {
+        ready && (file.mimeType.hasPrefix("image/") || file.mimeType.hasPrefix("text/") || file.mimeType == "application/json")
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: fileIcon(file.mimeType))
@@ -313,26 +303,21 @@ struct FileRowView: View {
 
             Spacer()
 
-            Button {
-                Task { await appState.pinFile(file, pinned: !file.isPinned) }
-            } label: {
-                Image(systemName: file.isPinned ? "pin.slash" : "pin")
-                    .foregroundColor(file.isPinned ? .orange : .secondary)
-            }
-            .buttonStyle(.plain)
-
-            if file.status == "ready" {
-                Button {
-                    appState.downloadFile(file)
-                } label: {
-                    Image(systemName: "arrow.down.circle")
-                }
-                .buttonStyle(.plain)
-            }
+            ItemActionMenu(
+                showDownload: ready,
+                showCopy: canCopy,
+                showPin: true,
+                showDelete: !file.isPinned,
+                isPinned: file.isPinned,
+                onDownload: { appState.downloadFile(file) },
+                onCopy: { Task { await appState.copyFileToClipboard(file) } },
+                onPin: { Task { await appState.pinFile(file, pinned: !file.isPinned) } },
+                onDelete: { Task { await appState.deleteFile(file) } }
+            )
         }
-        .padding(.horizontal, DS.Space.lg)
-        .padding(.vertical, DS.Space.md)
-        .glassCard(cornerRadius: DS.Radius.md)
+        .padding(.horizontal, DS.Space.md)
+        .padding(.vertical, DS.Space.sm)
+        .background(Color.clear)
     }
 }
 
@@ -403,25 +388,18 @@ struct DeviceRowView: View {
         HStack(spacing: 10) {
             Image(systemName: platformIcon(device.platform))
                 .frame(width: 24)
-                .foregroundColor(device.trusted ? .accentColor : .secondary)
+                .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.name)
                     .font(.subheadline)
-                HStack(spacing: 4) {
-                    if device.trusted {
-                        Label("Trusted", systemImage: "checkmark.seal.fill")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                }
             }
 
             Spacer()
 
             if device.id != KeychainService.shared.deviceId {
                 Button(role: .destructive) {
-                    Task { await appState.authService.revokeDevice(id: device.id) }
+                    Task { try? await appState.authService.revokeDevice(id: device.id) }
                 } label: {
                     Image(systemName: "trash")
                         .foregroundColor(.red)

@@ -10,10 +10,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.syncbridge.android.sync.SyncClipboardService
 import com.syncbridge.android.ui.AppViewModel
 import com.syncbridge.android.ui.MainShell
 import com.syncbridge.android.ui.screens.LoginScreen
@@ -25,6 +27,14 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { }
 
+    private val mediaPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            SyncClipboardService.restart(applicationContext)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -32,9 +42,16 @@ class MainActivity : ComponentActivity() {
         queueShareIntent(intent)
 
         setContent {
-            SyncBridgeTheme(dynamicColor = true) {
+            SyncBridgeTheme(dynamicColor = false) {
                 val vm: AppViewModel = viewModel()
                 val state by vm.state.collectAsState()
+
+                LaunchedEffect(state.isAuthenticated) {
+                    if (state.isAuthenticated) {
+                        vm.refreshAll()
+                        requestMediaPermission()
+                    }
+                }
 
                 if (!state.isAuthenticated) {
                     LoginScreen(
@@ -48,6 +65,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -98,6 +123,19 @@ class MainActivity : ComponentActivity() {
             ) {
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+    }
+
+    private fun requestMediaPermission() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            SyncClipboardService.restart(applicationContext)
+        } else {
+            mediaPermission.launch(permission)
         }
     }
 }

@@ -20,10 +20,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,10 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syncbridge.android.ui.MainTab
@@ -57,13 +57,13 @@ fun DockBottomBar(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(SyncTokens.DockHeight)
                 .align(Alignment.BottomCenter),
             shape = RoundedCornerShape(999.dp),
-            color = GlassColors.dock(),
-            shadowElevation = 16.dp,
+            color = AppSurfaces.dock(),
+            shadowElevation = 8.dp,
             tonalElevation = 0.dp,
-            border = BorderStroke(1.dp, GlassColors.border()),
+            border = BorderStroke(1.dp, AppSurfaces.cardBorder()),
         ) {
             Row(
                 modifier = Modifier
@@ -79,7 +79,7 @@ fun DockBottomBar(
                     DockNavItem(MainTab.Clipboard, Icons.Outlined.ContentPaste, current, onNavigate)
                     DockNavItem(MainTab.Pinned, Icons.Outlined.PushPin, current, onNavigate)
                 }
-                Spacer(Modifier.width(52.dp))
+                Spacer(Modifier.width(56.dp))
                 Row(
                     modifier = Modifier.weight(1f),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -94,9 +94,8 @@ fun DockBottomBar(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 2.dp)
+                .offset(y = (-4).dp)
                 .size(60.dp)
-                .shadow(20.dp, CircleShape, spotColor = Color(0x664F46E5))
                 .clip(CircleShape)
                 .background(
                     Brush.horizontalGradient(
@@ -110,10 +109,10 @@ fun DockBottomBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                Icons.Outlined.Send,
+                Icons.AutoMirrored.Outlined.Send,
                 contentDescription = "Send",
                 tint = Color.White,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
     }
@@ -127,17 +126,13 @@ private fun DockNavItem(
     onNavigate: (MainTab) -> Unit,
 ) {
     val selected = current == tab
-    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.65f)
-    val activeGreen = Color(0xFF15803D)
-    val activeBg = Color(0xFFBBF7D0).copy(alpha = 0.9f)
-    val activeBorder = Color(0xFF4ADE80).copy(alpha = 0.55f)
 
     Surface(
         onClick = { onNavigate(tab) },
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) activeBg else Color.Transparent,
-        border = if (selected) BorderStroke(1.dp, activeBorder) else null,
-        shadowElevation = if (selected) 3.dp else 0.dp,
+        color = if (selected) SyncTokens.DockActiveBg else Color.Transparent,
+        border = if (selected) BorderStroke(1.dp, SyncTokens.DockActiveBorder) else null,
+        shadowElevation = if (selected) 2.dp else 0.dp,
         modifier = Modifier
             .width(72.dp)
             .height(52.dp),
@@ -150,14 +145,14 @@ private fun DockNavItem(
             Icon(
                 icon,
                 contentDescription = tab.label,
-                tint = if (selected) activeGreen else inactiveColor,
+                tint = if (selected) SyncTokens.DockActiveGreen else SyncTokens.DockInactive,
                 modifier = Modifier.size(22.dp),
             )
             Text(
                 tab.label,
                 fontSize = 9.sp,
-                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
-                color = if (selected) activeGreen else inactiveColor,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                color = if (selected) SyncTokens.DockActiveGreen else SyncTokens.DockInactive,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )

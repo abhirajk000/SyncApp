@@ -4,7 +4,6 @@ import type { DeviceEntry } from "../api";
 import { relativeTime } from "./format";
 
 const DEVICE_NAME_KEY = "syncbridge.deviceName";
-const TRUSTED_RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function defaultWebDeviceName(): string {
   const ua = navigator.userAgent;
@@ -57,21 +56,6 @@ export function platformIcon(platform: string): LucideIcon {
     default:
       return Tablet;
   }
-}
-
-export function isTrustedActive(device: DeviceEntry, now = Date.now()): boolean {
-  if (!device.trusted) return false;
-  if (device.trusted_until) {
-    if (new Date(device.trusted_until).getTime() > now) return true;
-  }
-  if (device.last_seen_at) {
-    if (now - new Date(device.last_seen_at).getTime() <= TRUSTED_RECENT_MS) return true;
-  }
-  return false;
-}
-
-export function filterTrustedDevices(devices: DeviceEntry[]): DeviceEntry[] {
-  return devices.filter((d) => isTrustedActive(d));
 }
 
 export function lastSeenLabel(device: DeviceEntry): string {

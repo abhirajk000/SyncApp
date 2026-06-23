@@ -21,12 +21,19 @@ object SyncEventBus {
     private val _filesUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val filesUpdated: SharedFlow<Unit> = _filesUpdated.asSharedFlow()
 
+    private val _syncError = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val syncError: SharedFlow<String> = _syncError.asSharedFlow()
+
     fun emitNearbyAlert(deviceId: String) {
         _nearbyAlert.tryEmit(deviceId)
     }
 
     fun emitFilesUpdated() {
         _filesUpdated.tryEmit(Unit)
+    }
+
+    fun emitSyncError(message: String) {
+        _syncError.tryEmit(message)
     }
 
     fun emitClipboard(entry: ClipboardEntry) {

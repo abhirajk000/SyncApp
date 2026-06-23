@@ -23,12 +23,15 @@ struct PinnedClipboardView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(pinned) { entry in
                             ClipboardEntryRow(entry: entry)
-                            Divider()
+                            Divider().opacity(0.35)
                         }
                     }
+                    .padding(.horizontal, DS.Space.sm)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await appState.refreshClipboardHistory() }
     }
 }

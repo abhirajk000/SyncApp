@@ -1,83 +1,197 @@
 package com.syncbridge.android.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.syncbridge.android.sync.ClipboardSettings
 import com.syncbridge.android.ui.components.AppCard
 import com.syncbridge.android.ui.components.AppSectionTitle
+import com.syncbridge.android.ui.components.SettingsLinkRow
 import com.syncbridge.android.ui.theme.SyncTokens
 
 @Composable
 fun SettingsScreen(
     connected: Boolean,
+    clipboardSettings: ClipboardSettings,
     onLogout: () -> Unit,
     onOpenDevices: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(SyncTokens.Space4),
-        verticalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
+            .padding(horizontal = SyncTokens.Space4),
+        verticalArrangement = Arrangement.spacedBy(SyncTokens.Space6),
     ) {
-        AppSectionTitle("Devices")
-        AppCard {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenDevices),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space3),
-            ) {
-                Icon(Icons.Outlined.Devices, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Column(Modifier.weight(1f)) {
-                    Text("Trusted devices", fontWeight = FontWeight.SemiBold)
+        Column(
+            modifier = Modifier.padding(top = SyncTokens.Space4, bottom = SyncTokens.Space10 + SyncTokens.DockHeight),
+            verticalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
+        ) {
+            AppSectionTitle("Devices")
+            AppCard {
+                SettingsLinkRow(
+                    icon = Icons.Outlined.Devices,
+                    title = "Trusted devices",
+                    subtitle = "Pair, rename, trust, or remove devices",
+                    onClick = onOpenDevices,
+                )
+            }
+
+            AppSectionTitle("Clipboard")
+            AppCard {
+                var autoSync by remember { mutableStateOf(clipboardSettings.autoSyncClipboard) }
+                var autoApply by remember { mutableStateOf(clipboardSettings.autoApplyRemoteClipboard) }
+                var autoImages by remember { mutableStateOf(clipboardSettings.autoSyncImages) }
+                var showNotifications by remember { mutableStateOf(clipboardSettings.showClipboardNotifications) }
+
+                ClipboardSettingToggle(
+                    title = "Auto sync clipboard",
+                    subtitle = "Upload copies from this device automatically",
+                    checked = autoSync,
+                    onCheckedChange = {
+                        autoSync = it
+                        clipboardSettings.autoSyncClipboard = it
+                    },
+                )
+                ClipboardSettingToggle(
+                    title = "Auto apply remote clipboard",
+                    subtitle = "Paste synced content without opening SyncBridge",
+                    checked = autoApply,
+                    onCheckedChange = {
+                        autoApply = it
+                        clipboardSettings.autoApplyRemoteClipboard = it
+                    },
+                )
+                ClipboardSettingToggle(
+                    title = "Auto sync images",
+                    subtitle = "Include photos, screenshots, and copied images",
+                    checked = autoImages,
+                    onCheckedChange = {
+                        autoImages = it
+                        clipboardSettings.autoSyncImages = it
+                    },
+                )
+                ClipboardSettingToggle(
+                    title = "Show clipboard notifications",
+                    subtitle = "Notify when clipboard updates from another device",
+                    checked = showNotifications,
+                    onCheckedChange = {
+                        showNotifications = it
+                        clipboardSettings.showClipboardNotifications = it
+                    },
+                )
+            }
+
+            AppSectionTitle("Connection")
+            AppCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space3),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(if (connected) SyncTokens.Success else SyncTokens.SlateMuted),
+                    )
                     Text(
-                        "Pair, rename, trust, or remove devices",
-                        style = MaterialTheme.typography.bodySmall,
+                        if (connected) "Live sync — instant clipboard push" else "Reconnecting live sync…",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            }
+
+            AppSectionTitle("About")
+            AppCard {
+                Text("SyncBridge", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Instant clipboard sync across your devices.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = SyncTokens.Space2),
+                )
+                Text(
+                    "Version ${com.syncbridge.android.BuildConfig.VERSION_NAME}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = SyncTokens.SlateMuted,
+                    modifier = Modifier.padding(top = SyncTokens.Space3),
+                )
+            }
+
+            AppSectionTitle("Account")
+            AppCard {
+                Button(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(SyncTokens.RadiusMd),
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Outlined.Logout,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = SyncTokens.Space2),
+                    )
+                    Text("Log out")
+                }
             }
         }
+    }
+}
 
-        AppSectionTitle("Connection")
-        AppCard {
+@Composable
+private fun ClipboardSettingToggle(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = SyncTokens.Space2),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space3),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
             Text(
-                if (connected) "Connected — clipboard sync active" else "Offline — reconnecting…",
-                color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        AppSectionTitle("Account")
-        AppCard {
-            OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-                Text("Sign out", color = MaterialTheme.colorScheme.error)
-            }
-        }
-
-        AppSectionTitle("About")
-        AppCard {
-            Text(
-                "SyncBridge — universal clipboard and file sharing across your devices.",
-                style = MaterialTheme.typography.bodyMedium,
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

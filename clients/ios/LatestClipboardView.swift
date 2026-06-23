@@ -1,102 +1,68 @@
-// LatestClipboardView.swift — DesignSystem modal
+// LatestClipboardView.swift — Popup on app open (matches Android/macOS)
 
 import SwiftUI
 
 struct LatestClipboardView: View {
+    @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
     let entry: ClipboardEntry
     let onDismiss: () -> Void
 
     @State private var copied = false
 
-    private var isImage: Bool { entry.contentType.hasPrefix("image/") }
+    private var isImage: Bool { isImageContentType(entry.contentType) }
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.35).ignoresSafeArea()
-
-            AppCard {
-                VStack(alignment: .leading, spacing: DS.Space.md) {
+            AppCard(accentBorder: SyncTokens.teal.opacity(0.22)) {
+                VStack(alignment: .leading, spacing: SyncTokens.space3) {
                     HStack {
-                        Text("Latest Clipboard").font(DS.Font.title())
+                        Text("Latest Clipboard")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
                         Spacer()
-                        Button("✕") { onDismiss() }
-                            .foregroundStyle(.secondary)
+                        Button("✕", action: onDismiss)
+                            .foregroundStyle(SyncTokens.slateMuted)
                     }
-
                     Text(relativeTime(entry.createdAt))
-                        .font(DS.Font.caption())
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(SyncTokens.slateSecondary)
 
                     Button {
-                        applyToPasteboard()
+                        appState.copyEntry(entry)
                         copied = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { onDismiss() }
                     } label: {
                         Group {
-                            if isImage, let uiImage = decodeImage() {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(maxHeight: 200)
+                            if isImage {
+                                ClipboardImageThumb(
+                                    entry: entry,
+                                    serverURL: appState.serverURL,
+                                    accessToken: appState.accessToken,
+                                    maxHeight: 180
+                                )
                             } else {
-                                Text(displayContent)
-                                    .font(DS.Font.body())
+                                Text(clipboardDisplayText(entry.content, max: 500))
+                                    .font(.system(size: 14))
                                     .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(DS.Space.md)
-                        .background(Color.primary.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+                        .padding(SyncTokens.space3)
+                        .background(AppSurfaces.surfaceVariant(colorScheme).opacity(0.55))
+                        .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
                     }
                     .buttonStyle(.plain)
 
                     if copied {
-                        Label("Copied", systemImage: "checkmark")
-                            .font(DS.Font.caption())
-                            .foregroundStyle(DS.Color.success)
-                            .frame(maxWidth: .infinity)
+                        Label(isImage ? "Copied image" : "Copied", systemImage: "checkmark")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(SyncTokens.success)
                     }
                 }
             }
             .frame(maxWidth: 340)
+            .padding(SyncTokens.space4)
         }
-    }
-
-    private var displayContent: String {
-        let t = entry.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if t.count > 500 { return String(t.prefix(500)) + "…" }
-        return t.isEmpty ? "(empty)" : t
-    }
-
-    private func decodeImage() -> UIImage? {
-        guard let data = Data(base64Encoded: entry.content) else { return nil }
-        return UIImage(data: data)
-    }
-
-    private func applyToPasteboard() {
-        #if os(iOS)
-        if isImage, let image = decodeImage() {
-            UIPasteboard.general.image = image
-        } else {
-            UIPasteboard.general.string = entry.content
-        }
-        #endif
-    }
-
-    private func relativeTime(_ iso: String) -> String {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = f.date(from: iso) ?? ISO8601DateFormatter().date(from: iso) else {
-            return "just now"
-        }
-        let s = Int(-date.timeIntervalSinceNow)
-        if s < 5 { return "just now" }
-        if s < 60 { return "\(s) seconds ago" }
-        return "\(s / 60) minutes ago"
     }
 }
-
-#if os(iOS)
-import UIKit
-#endif

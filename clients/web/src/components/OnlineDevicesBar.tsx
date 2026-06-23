@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { DeviceEntry, fetchDevices } from "../api";
 import { DeviceTypeIcon } from "../components/DeviceTypeIcon";
-import { filterTrustedDevices } from "../lib/devices";
 import { useNetwork } from "../design/NetworkProvider";
 
-export function TrustedDevicesBar() {
+export function OnlineDevicesBar() {
   const net = useNetwork();
   const [devices, setDevices] = useState<DeviceEntry[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const data = await fetchDevices(true);
+      const data = await fetchDevices();
       setDevices(data.devices.filter((d) => !d.is_current));
     } catch {
       /* ignore */
@@ -21,10 +20,9 @@ export function TrustedDevicesBar() {
     void load();
   }, [load, net.devices]);
 
-  const trusted = filterTrustedDevices(devices.length ? devices : net.devices.filter((d) => !d.is_current));
   const peerOnline = new Set(net.peers.map((p) => p.device_id));
-
-  const visible = trusted.map((d) => ({
+  const source = devices.length ? devices : net.devices.filter((d) => !d.is_current);
+  const visible = source.map((d) => ({
     ...d,
     online: d.online || peerOnline.has(d.id),
   }));

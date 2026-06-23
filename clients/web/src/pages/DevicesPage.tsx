@@ -4,14 +4,12 @@ import {
   fetchDevices,
   renameDevice,
   revokeDevice,
-  trustDevice,
 } from "../api";
 import { AppButton, AppCard, AppInput, AppModal, AppSection, AppSkeleton } from "../components";
 import { PairQrPanel } from "../components/PairQrPanel";
 import { DeviceTypeIcon } from "../components/DeviceTypeIcon";
 import { ArrowLeft } from "lucide-react";
 import {
-  isTrustedActive,
   lastSeenLabel,
   onlineStatusLabel,
   platformLabel,
@@ -77,16 +75,6 @@ export function DevicesPage({ onBack }: Props) {
     }
   }
 
-  async function trust(device: DeviceEntry) {
-    try {
-      await trustDevice(device.id);
-      await load();
-      toast("Device trusted", "success");
-    } catch {
-      toast("Could not trust device", "danger");
-    }
-  }
-
   if (loading) return <AppSkeleton rows={6} />;
 
   return (
@@ -100,7 +88,7 @@ export function DevicesPage({ onBack }: Props) {
 
       <h2 className="ds-title" style={{ marginBottom: "var(--space-2)" }}>Devices</h2>
       <p className="ds-subtitle" style={{ marginBottom: "var(--space-6)" }}>
-        Pair new devices and manage trusted devices on your account.
+        Pair new devices and manage devices on your account.
       </p>
 
       <AppSection title="Pair a device">
@@ -119,7 +107,7 @@ export function DevicesPage({ onBack }: Props) {
         </AppSection>
       )}
 
-      <AppSection title="Trusted devices">
+      <AppSection title="Other devices">
         {others.length === 0 ? (
           <AppCard>
             <p className="ds-card-desc" style={{ margin: 0 }}>
@@ -136,7 +124,6 @@ export function DevicesPage({ onBack }: Props) {
                   setRenameTarget(device);
                   setRenameValue(device.name);
                 }}
-                onTrust={!isTrustedActive(device) ? () => void trust(device) : undefined}
                 onRemove={() => void remove(device)}
               />
             ))}
@@ -172,16 +159,12 @@ export function DevicesPage({ onBack }: Props) {
 function DeviceCard({
   device,
   onRename,
-  onTrust,
   onRemove,
 }: {
   device: DeviceEntry;
   onRename: () => void;
-  onTrust?: () => void;
   onRemove?: () => void;
 }) {
-  const trusted = isTrustedActive(device);
-
   return (
     <AppCard className="ds-device-card">
       <div className="ds-device-card__main">
@@ -197,7 +180,6 @@ function DeviceCard({
           <p className="ds-device-card__meta">
             {platformLabel(device.platform)}
             {device.is_current ? " · This device" : ""}
-            {trusted ? " · Trusted" : " · Not trusted"}
           </p>
           <p className="ds-device-card__meta">{lastSeenLabel(device)}</p>
         </div>
@@ -206,11 +188,6 @@ function DeviceCard({
         <AppButton variant="ghost" size="sm" onClick={onRename}>
           Rename
         </AppButton>
-        {onTrust && (
-          <AppButton variant="ghost" size="sm" onClick={onTrust}>
-            Trust
-          </AppButton>
-        )}
         {onRemove && (
           <AppButton variant="danger" size="sm" onClick={onRemove}>
             Remove

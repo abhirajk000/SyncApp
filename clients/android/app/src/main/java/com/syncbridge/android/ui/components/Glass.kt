@@ -7,87 +7,77 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.syncbridge.android.ui.theme.SyncTokens
 
-object GlassColors {
+/** Solid surface colors — no glass / blur. */
+object AppSurfaces {
     @Composable
-    fun surface(): Color =
-        if (isSystemInDarkTheme()) Color(0xB7111827) else Color(0xB8FFFFFF)
+    fun pageBackground(): Color = MaterialTheme.colorScheme.background
 
     @Composable
-    fun border(): Color =
-        if (isSystemInDarkTheme()) Color(0x1AF8FAFC) else Color(0xD9FFFFFF)
+    fun card(): Color = MaterialTheme.colorScheme.surface
 
     @Composable
-    fun highlight(): Color =
-        if (isSystemInDarkTheme()) Color(0x14F8FAFC) else Color(0xE6FFFFFF)
+    fun cardBorder(): Color =
+        if (isSystemInDarkTheme()) Color(0xFF1E293B) else SyncTokens.CardBorder
 
     @Composable
     fun dock(): Color =
-        if (isSystemInDarkTheme()) Color(0xE61C2232) else Color(0xEBFFFFFF)
+        if (isSystemInDarkTheme()) Color(0xFF111827) else Color.White
+}
+
+/** @deprecated Use [AppSurfaces] */
+object GlassColors {
+    @Composable fun surface(): Color = AppSurfaces.card()
+    @Composable fun border(): Color = AppSurfaces.cardBorder()
+    @Composable fun highlight(): Color = AppSurfaces.card()
+    @Composable fun dock(): Color = AppSurfaces.dock()
 }
 
 @Composable
-fun LiquidBackground(modifier: Modifier = Modifier) {
-    val isDark = isSystemInDarkTheme()
-    val base = if (isDark) Color(0xFF080D18) else SyncTokens.SlateBg
+fun AppBackground(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(base),
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            SyncTokens.Teal.copy(if (isDark) 0.14f else 0.18f),
-                            Color.Transparent,
-                        ),
-                        radius = 900f,
-                    ),
-                ),
-        )
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            SyncTokens.Indigo.copy(if (isDark) 0.10f else 0.12f),
-                            Color.Transparent,
-                        ),
-                        center = androidx.compose.ui.geometry.Offset(1200f, 800f),
-                        radius = 700f,
-                    ),
-                ),
-        )
-    }
+            .background(AppSurfaces.pageBackground()),
+    )
 }
 
+/** @deprecated Use [AppBackground] */
+@Composable
+fun LiquidBackground(modifier: Modifier = Modifier) = AppBackground(modifier)
+
+@Composable
+fun SurfaceCard(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(SyncTokens.RadiusLg),
+    borderColor: Color? = null,
+    elevation: Dp = 1.dp,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val border = borderColor ?: AppSurfaces.cardBorder()
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(AppSurfaces.card())
+            .border(1.dp, border, shape),
+        content = content,
+    )
+}
+
+/** @deprecated Use [SurfaceCard] */
 @Composable
 fun GlassSurface(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(SyncTokens.RadiusLg),
-    elevation: Dp = 4.dp,
+    elevation: Dp = 1.dp,
     content: @Composable BoxScope.() -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .shadow(elevation, shape, ambientColor = Color.Black.copy(0.06f))
-            .clip(shape)
-            .background(GlassColors.surface())
-            .border(1.dp, GlassColors.border(), shape),
-        content = content,
-    )
-}
+) = SurfaceCard(modifier, shape, elevation = elevation, content = content)

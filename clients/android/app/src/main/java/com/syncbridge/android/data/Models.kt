@@ -7,6 +7,7 @@ data class ClipboardEntry(
     val sourceDeviceId: String,
     val pinned: Boolean,
     val createdAt: String,
+    val hasThumbnail: Boolean = false,
 )
 
 data class FileEntry(

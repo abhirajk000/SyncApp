@@ -35,6 +35,10 @@ node_modules/
 clients/web/dist/
 clients/web/node_modules/
 releases/
+clients/macos/build/
+clients/ios/build/
+clients/macos/*.xcodeproj/
+clients/ios/*.xcodeproj/
 *.tsbuildinfo
 
 # Docker volumes (local dev only)

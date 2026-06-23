@@ -7,6 +7,7 @@ import com.syncbridge.android.network.NetworkManager
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -24,10 +25,12 @@ class WSClient(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var socket: WebSocket? = null
+    private var reconnectJob: Job? = null
     @Volatile private var running = false
+    @Volatile private var replacingSocket = false
 
     private val client = OkHttpClient.Builder()
-        .pingInterval(54, TimeUnit.SECONDS)
+        .pingInterval(30, TimeUnit.SECONDS)
         .build()
 
     fun connect() {
@@ -38,14 +41,20 @@ class WSClient(
 
     private fun openSocket() {
         val token = api.accessToken ?: return
+        replacingSocket = true
         socket?.close(1000, "reconnect")
+        socket = null
+        replacingSocket = false
+
         val base = api.serverUrl.trimEnd('/')
         val wsBase = base.replace("https://", "wss://").replace("http://", "ws://")
         val request = Request.Builder().url("$wsBase/ws?token=$token").build()
         socket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                SyncEventBus.setConnected(true)
-                networkManager?.setWsConnected(true)
+                reconnectJob?.cancel()
+                reconnectJob = null
+                setLive(true)
+                Log.d(TAG, "websocket open")
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -54,16 +63,17 @@ class WSClient(
                     when (json.optString("type")) {
                         "clipboard.new" -> {
                             val payload = json.getJSONObject("payload")
-                            onClipboardNew(
-                                ClipboardEntry(
-                                    id = payload.getString("entry_id"),
-                                    contentType = payload.optString("content_type", "text/plain"),
-                                    content = payload.getString("content"),
-                                    sourceDeviceId = payload.optString("source_device_id", ""),
-                                    pinned = payload.optBoolean("pinned", false),
-                                    createdAt = payload.optString("created_at", ""),
-                                ),
+                            val entry = ClipboardEntry(
+                                id = payload.getString("entry_id"),
+                                contentType = payload.optString("content_type", "text/plain"),
+                                content = payload.optString("content", ""),
+                                sourceDeviceId = payload.optString("source_device_id", ""),
+                                pinned = payload.optBoolean("pinned", false),
+                                createdAt = payload.optString("created_at", ""),
+                                hasThumbnail = payload.optBoolean("has_thumbnail", false)
+                                    || payload.optString("content_type", "").startsWith("image/"),
                             )
+                            onClipboardNew(entry)
                             networkManager?.markSync()
                         }
                         "signal.peer" -> {
@@ -90,39 +100,53 @@ class WSClient(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                SyncEventBus.setConnected(false)
-                networkManager?.setWsConnected(false)
-                scheduleReconnect()
+                if (replacingSocket) return
+                Log.d(TAG, "websocket closed code=$code reason=$reason")
+                handleDisconnect()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                SyncEventBus.setConnected(false)
-                networkManager?.setWsConnected(false)
-                scheduleReconnect()
+                if (replacingSocket) return
+                Log.w(TAG, "websocket failure: ${t.message}")
+                handleDisconnect()
             }
         })
     }
 
+    private fun handleDisconnect() {
+        setLive(false)
+        scheduleReconnect()
+    }
+
+    private fun setLive(live: Boolean) {
+        SyncEventBus.setConnected(live)
+        networkManager?.setWsConnected(live)
+    }
+
     private fun scheduleReconnect() {
-        if (!running) return
-        scope.launch {
+        if (!running || reconnectJob?.isActive == true) return
+        reconnectJob = scope.launch {
             var backoff = 1000L
             while (running && !SyncEventBus.connected.value) {
                 delay(backoff)
                 if (!running) return@launch
                 openSocket()
-                delay(3000)
+                delay(2500)
                 if (SyncEventBus.connected.value) return@launch
-                backoff = minOf(backoff * 2, 60_000L)
+                backoff = minOf(backoff * 2, 30_000L)
             }
         }
     }
 
     fun disconnect() {
         running = false
+        reconnectJob?.cancel()
+        reconnectJob = null
+        replacingSocket = true
         socket?.close(1000, "stop")
         socket = null
-        SyncEventBus.setConnected(false)
+        replacingSocket = false
+        setLive(false)
     }
 
     companion object {

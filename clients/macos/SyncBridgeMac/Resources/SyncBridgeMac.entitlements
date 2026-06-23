@@ -7,12 +7,6 @@
     <key>com.apple.security.network.client</key>
     <true/>
 
-    <!-- Keychain access for JWT storage -->
-    <key>keychain-access-groups</key>
-    <array>
-        <string>$(AppIdentifierPrefix)com.syncbridge</string>
-    </array>
-
     <!-- Launch at login (SMAppService — macOS 13+) -->
     <key>com.apple.smserver.client</key>
     <true/>

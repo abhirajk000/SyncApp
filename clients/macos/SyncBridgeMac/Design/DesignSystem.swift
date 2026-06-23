@@ -11,12 +11,36 @@ enum DS {
         static let success = SwiftUI.Color(red: 0.02, green: 0.59, blue: 0.41)
         static let warning = SwiftUI.Color(red: 0.85, green: 0.47, blue: 0.02)
         static let danger = SwiftUI.Color(red: 0.86, green: 0.15, blue: 0.15)
-        static let bg = SwiftUI.Color(red: 0.96, green: 0.97, blue: 0.99)
-        static let card = SwiftUI.Color.white
-        static let text = SwiftUI.Color(red: 0.05, green: 0.07, blue: 0.13)
+        static let bgLight = SwiftUI.Color(red: 0.96, green: 0.97, blue: 0.99)
+        static let bgDark = SwiftUI.Color(red: 0.05, green: 0.07, blue: 0.12)
+        static let cardLight = SwiftUI.Color.white.opacity(0.72)
+        static let cardDark = SwiftUI.Color(red: 0.11, green: 0.14, blue: 0.20).opacity(0.85)
+        static let textLight = SwiftUI.Color(red: 0.05, green: 0.07, blue: 0.13)
+        static let textDark = SwiftUI.Color(red: 0.94, green: 0.96, blue: 0.99)
         static let muted = SwiftUI.Color(red: 0.39, green: 0.45, blue: 0.55)
         static let activeGreen = SwiftUI.Color(red: 0.08, green: 0.50, blue: 0.24)
         static let activeGreenBg = SwiftUI.Color(red: 0.73, green: 0.97, blue: 0.82)
+        static let activeGreenBgDark = SwiftUI.Color(red: 0.08, green: 0.35, blue: 0.18)
+
+        static func bgAdaptive(_ scheme: ColorScheme) -> SwiftUI.Color {
+            scheme == .dark ? bgDark : bgLight
+        }
+
+        static func cardAdaptive(_ scheme: ColorScheme) -> SwiftUI.Color {
+            scheme == .dark ? cardDark : cardLight
+        }
+
+        static func textAdaptive(_ scheme: ColorScheme) -> SwiftUI.Color {
+            scheme == .dark ? textDark : textLight
+        }
+
+        static func primaryAdaptive(_ scheme: ColorScheme) -> SwiftUI.Color {
+            scheme == .dark ? primaryDark : primary
+        }
+
+        static func borderAdaptive(_ scheme: ColorScheme) -> SwiftUI.Color {
+            scheme == .dark ? SwiftUI.Color.white.opacity(0.12) : SwiftUI.Color.white.opacity(0.85)
+        }
     }
 
     enum Glass {
@@ -72,40 +96,49 @@ enum DS {
 // MARK: - Liquid background
 
 struct LiquidBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        ZStack {
-            DS.Color.bg.ignoresSafeArea()
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [DS.Color.primary.opacity(0.18), .clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 260
-                    )
-                )
-                .frame(width: 520, height: 520)
-                .offset(x: -120, y: -180)
-                .blur(radius: 40)
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [DS.Color.secondary.opacity(0.14), .clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 220
-                    )
-                )
-                .frame(width: 440, height: 440)
-                .offset(x: 140, y: 220)
-                .blur(radius: 36)
-        }
+        DS.Color.bgAdaptive(colorScheme)
+            .overlay {
+                GeometryReader { geo in
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [DS.Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.18), .clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geo.size.width * 0.55
+                                )
+                            )
+                            .frame(width: geo.size.width * 1.1, height: geo.size.width * 1.1)
+                            .position(x: geo.size.width * 0.2, y: geo.size.height * 0.12)
+                            .blur(radius: 40)
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [DS.Color.secondary.opacity(colorScheme == .dark ? 0.18 : 0.14), .clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geo.size.width * 0.45
+                                )
+                            )
+                            .frame(width: geo.size.width * 0.95, height: geo.size.width * 0.95)
+                            .position(x: geo.size.width * 0.82, y: geo.size.height * 0.88)
+                            .blur(radius: 36)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+            .clipped()
     }
 }
 
 // MARK: - Glass modifier
 
 struct GlassCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
     var cornerRadius: CGFloat = DS.Radius.lg
     var hero: Bool = false
 
@@ -117,18 +150,29 @@ struct GlassCardModifier: ViewModifier {
                         .fill(DS.heroGradient)
                 } else {
                     RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(.ultraThinMaterial)
+                        .fill(DS.Color.cardAdaptive(colorScheme))
                 }
             }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(hero ? DS.Color.primary.opacity(0.22) : DS.Glass.border.opacity(0.55), lineWidth: 1)
+                    .stroke(
+                        hero ? DS.Color.primary.opacity(0.22) : DS.Color.borderAdaptive(colorScheme).opacity(0.55),
+                        lineWidth: 1
+                    )
             )
-            .shadow(color: hero ? DS.Color.primary.opacity(0.14) : DS.Glass.shadow, radius: hero ? 14 : 10, y: hero ? 6 : 4)
+            .shadow(
+                color: hero ? DS.Color.primary.opacity(0.14) : .black.opacity(colorScheme == .dark ? 0.35 : 0.08),
+                radius: hero ? 14 : 8,
+                y: hero ? 6 : 3
+            )
     }
 }
 
 extension View {
+    func adaptiveGlassCard(cornerRadius: CGFloat = DS.Radius.lg, hero: Bool = false) -> some View {
+        modifier(GlassCardModifier(cornerRadius: cornerRadius, hero: hero))
+    }
+
     func glassCard(cornerRadius: CGFloat = DS.Radius.lg, hero: Bool = false) -> some View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius, hero: hero))
     }
@@ -288,6 +332,7 @@ struct GlassListRow<Content: View>: View {
 }
 
 struct PremiumTextField: View {
+    @Environment(\.colorScheme) private var colorScheme
     var label: String = ""
     @Binding var text: String
     var secure: Bool = false
@@ -307,10 +352,10 @@ struct PremiumTextField: View {
             .textFieldStyle(.plain)
             .font(DS.Font.body())
             .padding(DS.Space.md)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+            .background(DS.Color.cardAdaptive(colorScheme), in: RoundedRectangle(cornerRadius: DS.Radius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(DS.Glass.border.opacity(0.45))
+                    .stroke(DS.Color.borderAdaptive(colorScheme).opacity(0.45))
             )
         }
     }

@@ -71,7 +71,7 @@ export interface FileListResponse {
   total: number;
 }
 
-function ensureDeviceId(): string {
+export function ensureDeviceId(): string {
   let id = localStorage.getItem(KEYS.deviceId);
   if (!id) {
     id = crypto.randomUUID();
@@ -331,9 +331,8 @@ export interface DeviceListResponse {
   total: number;
 }
 
-export async function fetchDevices(trustedOnly = false): Promise<DeviceListResponse> {
-  const q = trustedOnly ? "?trusted=true" : "";
-  return apiRequest<DeviceListResponse>(`/api/v1/devices${q}`);
+export async function fetchDevices(): Promise<DeviceListResponse> {
+  return apiRequest<DeviceListResponse>("/api/v1/devices");
 }
 
 export async function renameDevice(id: string, name: string): Promise<DeviceEntry> {
@@ -345,10 +344,6 @@ export async function renameDevice(id: string, name: string): Promise<DeviceEntr
 
 export async function revokeDevice(id: string): Promise<void> {
   await apiRequest<void>(`/api/v1/devices/${id}`, { method: "DELETE" });
-}
-
-export async function trustDevice(id: string): Promise<void> {
-  await apiRequest<void>(`/api/v1/devices/${id}/trust`, { method: "POST" });
 }
 
 export interface PairInitiateResponse {

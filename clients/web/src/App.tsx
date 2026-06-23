@@ -27,6 +27,8 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { DevicesPage } from "./pages/DevicesPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
+import { loadClipboardSettings } from "./lib/clipboardSettings";
+import { ensureDeviceId } from "./api";
 import { Check } from "lucide-react";
 import { relativeTime } from "./lib/format";
 
@@ -55,13 +57,16 @@ function AppShell() {
   const [latestPopup, setLatestPopup] = useState<ClipboardEntry | null>(null);
   const [copied, setCopied] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const popupShownThisSession = useRef(false);
   const { toast } = useToast();
 
   const onAuthed = useCallback(async () => {
     setAuthed(true);
+    if (popupShownThisSession.current) return;
     try {
       const entry = await fetchCurrentClipboard();
       setLatestPopup(entry);
+      popupShownThisSession.current = true;
     } catch {
       /* no clipboard */
     }
@@ -86,6 +91,17 @@ function AppShell() {
 
   const toastRef = useRef(toast);
   toastRef.current = toast;
+  const lastLocalCopyAtRef = useRef(0);
+  const lastAppliedHashRef = useRef("");
+
+  useEffect(() => {
+    if (!authed) return;
+    const onCopy = () => {
+      lastLocalCopyAtRef.current = Date.now();
+    };
+    document.addEventListener("copy", onCopy);
+    return () => document.removeEventListener("copy", onCopy);
+  }, [authed]);
 
   useEffect(() => {
     if (!authed) {
@@ -113,7 +129,31 @@ function AppShell() {
           entry.transfer_route = peerIds.has(entry.source_device_id) ? "direct_lan" : "relay";
           window.dispatchEvent(new CustomEvent("syncbridge:clipboard-new", { detail: entry }));
           networkService.markSync();
-          toastRef.current("Clipboard updated", "success");
+
+          const settings = loadClipboardSettings();
+          if (settings.showClipboardNotifications) {
+            toastRef.current("Clipboard updated", "success");
+          }
+
+          const localId = ensureDeviceId();
+          const hash = entry.content;
+          const recentLocalCopy = Date.now() - lastLocalCopyAtRef.current < 4000;
+          const shouldApply =
+            settings.autoApplyRemoteClipboard &&
+            entry.source_device_id !== localId &&
+            hash !== lastAppliedHashRef.current &&
+            !recentLocalCopy &&
+            document.visibilityState === "visible";
+
+          if (shouldApply) {
+            void copyEntryToClipboard(entry)
+              .then(() => {
+                lastAppliedHashRef.current = hash;
+              })
+              .catch(() => {
+                /* Browser may block clipboard without user gesture — manual copy still available */
+              });
+          }
         }
       }
       if (type === "clipboard.pin") {
@@ -145,6 +185,7 @@ function AppShell() {
     clearSession();
     setAuthed(false);
     setLatestPopup(null);
+    popupShownThisSession.current = false;
     setNav("clipboard");
   }
 
@@ -213,7 +254,10 @@ function AppShell() {
       <AppModal
         open={!!latestPopup}
         title="Latest Clipboard"
-        onClose={() => setLatestPopup(null)}
+        onClose={() => {
+          setLatestPopup(null);
+          popupShownThisSession.current = true;
+        }}
       >
         {latestPopup && (
           <>

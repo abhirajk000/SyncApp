@@ -6,46 +6,62 @@ import SwiftUI
 struct SendTabView: View {
 
     @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
     @State private var text = ""
     @State private var sending = false
     @State private var error: String?
 
     var body: some View {
-        VStack(spacing: DS.Space.md) {
-            Text("Send text, images, or files to your connected devices.")
-                .font(DS.Font.body())
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Space.md) {
+                Text("Send text, images, or files to your connected devices.")
+                    .font(DS.Font.caption())
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            AppCard {
                 VStack(alignment: .leading, spacing: DS.Space.sm) {
-                    Text("Send Text")
+                    Text("Send text")
                         .font(DS.Font.headline())
+                        .foregroundStyle(DS.Color.textAdaptive(colorScheme))
+
                     TextEditor(text: $text)
                         .font(DS.Font.body())
-                        .frame(minHeight: 100, maxHeight: 140)
+                        .frame(minHeight: 88, maxHeight: 120)
                         .scrollContentBackground(.hidden)
                         .padding(DS.Space.sm)
-                        .background(Color(NSColor.textBackgroundColor))
+                        .background(DS.Color.cardAdaptive(colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DS.Radius.sm)
+                                .stroke(DS.Color.borderAdaptive(colorScheme).opacity(0.35))
+                        )
+
                     if let error {
-                        Text(error).font(DS.Font.label()).foregroundStyle(DS.Color.danger)
+                        Text(error)
+                            .font(DS.Font.label())
+                            .foregroundStyle(DS.Color.danger)
                     }
+
                     AppButton(title: sending ? "Sending…" : "Send", variant: .primary) {
                         Task { await sendText() }
                     }
                     .disabled(sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-            }
+                .padding(DS.Space.md)
+                .adaptiveGlassCard(cornerRadius: DS.Radius.md)
 
-            AppButton(title: "Send File…", variant: .secondary) {
-                openFilePicker()
-            }
-            .frame(maxWidth: .infinity)
+                AppButton(title: "Send File…", variant: .secondary) {
+                    openFilePicker()
+                }
 
-            Spacer(minLength: 0)
+                Text("Tip: drag files here to upload.")
+                    .font(DS.Font.label())
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(DS.Space.md)
         }
-        .padding(DS.Space.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onDrop(of: ["public.file-url"], isTargeted: nil) { providers in
             Task { @MainActor in
                 var urls: [URL] = []

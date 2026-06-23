@@ -1,19 +1,20 @@
-// SyncBridgeIOSApp.swift
-// SwiftUI app — fast launch, latest clipboard on open, WS while active.
+// SyncBridgeIOSApp.swift — App entry matching Android MainActivity flow
 
 import SwiftUI
+import UIKit
 
 @main
 struct SyncBridgeIOSApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var wsClient = WSClient()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var backgroundDisconnectTask: UIBackgroundTaskIdentifier = .invalid
 
     var body: some Scene {
         WindowGroup {
             ZStack {
                 if appState.isAuthenticated {
-                    MainView()
+                    MainShell()
                         .environmentObject(appState)
                         .environmentObject(wsClient)
                 } else {
@@ -22,41 +23,58 @@ struct SyncBridgeIOSApp: App {
                 }
 
                 if let popup = appState.latestClipboardPopup {
-                    LatestClipboardView(
-                        entry: popup,
-                        onDismiss: { appState.latestClipboardPopup = nil }
-                    )
+                    LatestClipboardView(entry: popup) {
+                        appState.dismissLatestClipboardPopup()
+                    }
+                    .environmentObject(appState)
                 }
             }
-            .onChange(of: appState.isAuthenticated) { _, authed in
+            .preferredColorScheme(nil)
+            .onChange(of: appState.isAuthenticated) { authed in
                 if authed {
-                    appState.startClipboardMonitor()
-                    Task { await appState.loadLatestClipboard() }
-                    connectWS()
+                    Task {
+                        connectWS()
+                        appState.resetLatestPopupSession()
+                        await appState.catchUpRemoteClipboard()
+                        await appState.presentLatestClipboardPopupIfNeeded()
+                        await appState.refreshAll()
+                    }
                 } else {
-                    appState.stopClipboardMonitor()
                     wsClient.disconnect()
                 }
             }
-            .onChange(of: scenePhase) { _, phase in
+            .onChange(of: scenePhase) { phase in
                 if phase == .active, appState.isAuthenticated {
                     appState.startClipboardMonitor()
-                    Task { await appState.loadLatestClipboard() }
+                    Task {
+                        await appState.syncForegroundClipboard()
+                        if appState.clipboardPastePending {
+                            try? await Task.sleep(nanoseconds: 400_000_000)
+                            await appState.syncForegroundClipboard()
+                        }
+                        await appState.catchUpRemoteClipboard()
+                        await appState.presentLatestClipboardPopupIfNeeded()
+                        await appState.refreshClipboardHistory()
+                        await appState.refreshFiles()
+                    }
                     connectWS()
                 } else if phase == .background {
                     appState.stopClipboardMonitor()
-                    wsClient.disconnect()
+                    scheduleBackgroundDisconnect()
                 }
             }
             .onAppear {
-                wsClient.onClipboardNew = { entry in
-                    appState.latestClipboardPopup = entry
-                    appState.applyEntryToPasteboard(entry)
-                }
                 if appState.isAuthenticated {
-                    appState.startClipboardMonitor()
-                    Task { await appState.loadLatestClipboard() }
+                    Task {
+                        await appState.catchUpRemoteClipboard()
+                    }
                     connectWS()
+                }
+                wsClient.onClipboardNew = { entry in
+                    Task { await appState.handleRemoteClipboardPush(entry) }
+                }
+                wsClient.onFilesUpdated = {
+                    Task { await appState.refreshFiles() }
                 }
             }
         }
@@ -64,36 +82,32 @@ struct SyncBridgeIOSApp: App {
 
     private func connectWS() {
         guard let token = appState.accessToken else { return }
+        if backgroundDisconnectTask != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundDisconnectTask)
+            backgroundDisconnectTask = .invalid
+        }
         wsClient.connect(accessToken: token, serverURL: appState.serverURL)
     }
-}
 
-struct MainView: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("Latest") {
-                    if let latest = appState.latestClipboardPopup {
-                        Text(latest.content)
-                            .lineLimit(4)
-                    } else {
-                        Text("Open app to fetch latest clipboard")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Section {
-                    Button("Log out", role: .destructive) {
-                        appState.logout()
-                    }
-                }
+    /// Keep WS alive briefly after backgrounding so a just-copied Mac clip can still land.
+    private func scheduleBackgroundDisconnect() {
+        if backgroundDisconnectTask != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundDisconnectTask)
+        }
+        backgroundDisconnectTask = UIApplication.shared.beginBackgroundTask {
+            wsClient.disconnect()
+            if backgroundDisconnectTask != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundDisconnectTask)
+                backgroundDisconnectTask = .invalid
             }
-            .navigationTitle("SyncBridge")
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 28_000_000_000)
+            wsClient.disconnect()
+            if backgroundDisconnectTask != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundDisconnectTask)
+                backgroundDisconnectTask = .invalid
+            }
         }
     }
 }
-
-#if os(iOS)
-import UIKit
-#endif

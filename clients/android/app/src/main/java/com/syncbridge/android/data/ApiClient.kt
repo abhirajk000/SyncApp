@@ -80,6 +80,11 @@ class ApiClient(private val prefs: SharedPreferences) {
             parseClipboardEntry(post("/api/v1/clipboard", body))
         }
 
+    suspend fun fetchClipboardEntry(id: String): ClipboardEntry =
+        withContext(Dispatchers.IO) {
+            parseClipboardEntry(get("/api/v1/clipboard/$id"))
+        }
+
     suspend fun fetchClipboardHistory(limit: Int = 100): List<ClipboardEntry> =
         withContext(Dispatchers.IO) {
             val json = get("/api/v1/clipboard?limit=$limit")
@@ -96,6 +101,20 @@ class ApiClient(private val prefs: SharedPreferences) {
         postEmpty("/api/v1/clipboard/$id/pin", JSONObject().put("pinned", pinned))
     }
 
+    suspend fun deleteClipboard(id: String) = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("${baseUrl()}/api/v1/clipboard/$id")
+            .delete()
+            .header("Authorization", "Bearer ${accessToken!!}")
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val text = response.body?.string().orEmpty()
+                throw ApiException(text.ifBlank { "HTTP ${response.code}" })
+            }
+        }
+    }
+
     suspend fun listFiles(limit: Int = 100): List<FileEntry> = withContext(Dispatchers.IO) {
         val json = get("/api/v1/files?limit=$limit")
         val files = json.getJSONArray("files")
@@ -104,6 +123,20 @@ class ApiClient(private val prefs: SharedPreferences) {
 
     suspend fun pinFile(id: String, pinned: Boolean) = withContext(Dispatchers.IO) {
         postEmpty("/api/v1/files/$id/pin", JSONObject().put("pinned", pinned))
+    }
+
+    suspend fun deleteFile(id: String) = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("${baseUrl()}/api/v1/files/$id")
+            .delete()
+            .header("Authorization", "Bearer ${accessToken!!}")
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val text = response.body?.string().orEmpty()
+                throw ApiException(text.ifBlank { "HTTP ${response.code}" })
+            }
+        }
     }
 
     suspend fun initFileUpload(
@@ -156,6 +189,15 @@ class ApiClient(private val prefs: SharedPreferences) {
             null
         }
     }
+
+    suspend fun downloadClipboardThumbnailBytes(clipboardId: String): ByteArray? =
+        withContext(Dispatchers.IO) {
+            try {
+                downloadBytes("/api/v1/clipboard/$clipboardId/thumbnail")
+            } catch (_: Exception) {
+                null
+            }
+        }
 
     private suspend fun downloadBytes(path: String): ByteArray = withContext(Dispatchers.IO) {
         val request = Request.Builder()
@@ -232,10 +274,12 @@ class ApiClient(private val prefs: SharedPreferences) {
     private fun parseClipboardEntry(json: JSONObject) = ClipboardEntry(
         id = json.getString("id"),
         contentType = json.optString("content_type", "text/plain"),
-        content = json.getString("content"),
+        content = json.optString("content", ""),
         sourceDeviceId = json.optString("source_device_id", ""),
         pinned = json.optBoolean("pinned", false),
         createdAt = json.optString("created_at", ""),
+        hasThumbnail = json.optBoolean("has_thumbnail", false)
+            || json.optString("content_type", "").startsWith("image/"),
     )
 
     private fun parseFileEntry(json: JSONObject) = FileEntry(

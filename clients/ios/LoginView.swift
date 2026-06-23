@@ -1,43 +1,99 @@
-// LoginView.swift — Premium
+// LoginView.swift — Matches Android LoginScreen.kt
 
 import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var pin = ""
+    @State private var loading = false
+    @State private var showQRScanner = false
 
     var body: some View {
         ZStack {
-            LiquidBackground()
-            VStack(spacing: DS.Space.xl) {
-                Image("AppLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 44, height: 44)
-                    .padding(DS.Space.sm)
-                    .background(DS.Color.primary.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
-
-                Text("SyncBridge").font(DS.Font.display())
-                Text("Enter your PIN to unlock").font(DS.Font.caption()).foregroundStyle(.secondary)
-
+            AppBackground()
+            VStack {
+                Spacer()
                 AppCard {
-                    VStack(spacing: DS.Space.lg) {
-                        PremiumTextField(text: $pin, secure: true)
+                    VStack(spacing: SyncTokens.space4) {
+                        Image("AppLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 52, height: 52)
+                            .frame(width: 72, height: 72)
+                            .background(SyncTokens.teal.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusLg))
+
+                        Text("SyncBridge")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                        Text("Enter your PIN to unlock")
+                            .font(.system(size: 14, design: .rounded))
+                            .foregroundStyle(AppSurfaces.onSurfaceVariant(colorScheme))
+                            .multilineTextAlignment(.center)
+
+                        SecureField("PIN", text: $pin)
+                            .keyboardType(.numberPad)
+                            .padding(SyncTokens.space3)
+                            .background(AppSurfaces.surfaceVariant(colorScheme))
+                            .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: SyncTokens.radiusMd)
+                                    .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+                            )
+
                         if let err = appState.errorMessage {
-                            Text(err).font(DS.Font.caption()).foregroundStyle(DS.Color.danger)
+                            Text(err)
+                                .font(.system(size: 13, design: .rounded))
+                                .foregroundStyle(SyncTokens.danger)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        AppButton(title: "Unlock", disabled: pin.isEmpty) {
-                            Task { await appState.unlock(pin: pin) }
+
+                        PrimaryButton(
+                            text: loading ? "Unlocking…" : "Unlock",
+                            loading: loading,
+                            enabled: !pin.isEmpty
+                        ) {
+                            Task {
+                                loading = true
+                                await appState.unlock(pin: pin)
+                                pin = ""
+                                loading = false
+                            }
                         }
+
+                        VStack(spacing: SyncTokens.space1) {
+                            Divider().overlay(SyncTokens.cardBorder)
+                        }
+
+                        Button {
+                            showQRScanner = true
+                        } label: {
+                            HStack(spacing: SyncTokens.space2) {
+                                Image(systemName: "qrcode.viewfinder")
+                                Text("Scan QR to pair")
+                            }
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(loading)
                     }
                 }
-                .padding(.horizontal)
-
+                .frame(maxWidth: 400)
+                .padding(.horizontal, SyncTokens.space6)
                 Spacer()
             }
-            .padding(.top, DS.Space.xxl)
         }
-        .padding()
+        .sheet(isPresented: $showQRScanner) {
+            QRScannerSheet { raw in
+                Task {
+                    loading = true
+                    await appState.pairFromQr(raw)
+                    loading = false
+                }
+            }
+        }
     }
 }

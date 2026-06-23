@@ -1,0 +1,43 @@
+name: SyncBridgeMac
+options:
+  bundleIdPrefix: com.syncbridge
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    MARKETING_VERSION: 1.0.0
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: 5.0
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+targets:
+  SyncBridgeMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: SyncBridgeMac
+        excludes:
+          - Resources/Info.plist
+          - Resources/SyncBridgeMac.entitlements
+          - Resources/AppIcon.iconset
+          - Resources/AppIcon.icns
+    settings:
+      base:
+        PRODUCT_NAME: SyncBridge
+        PRODUCT_BUNDLE_IDENTIFIER: com.syncbridge.mac
+        INFOPLIST_FILE: SyncBridgeMac/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: SyncBridgeMac/Resources/SyncBridgeMac.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_HARDENED_RUNTIME: YES
+    resources:
+      - SyncBridgeMac/Resources/MenuBarIcon.png
+schemes:
+  SyncBridgeMac:
+    build:
+      targets:
+        SyncBridgeMac: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -12,19 +12,16 @@ android {
         applicationId = "com.syncbridge.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = 13
         versionName = "1.0.0"
         buildConfigField("String", "DEFAULT_API_URL", "\"https://sync.abhiraj.xyz\"")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            // Minification was stripping OkHttp/JSON/ZXing and caused instant crash on launch.
+            isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = signingConfigs.getByName("debug")
         }
         debug {

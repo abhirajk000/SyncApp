@@ -8,62 +8,77 @@ import android.app.Service
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.syncbridge.android.MainActivity
 import com.syncbridge.android.R
 import com.syncbridge.android.SyncBridgeApp
 import com.syncbridge.android.data.ClipboardEntry
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
 class SyncClipboardService : Service() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private lateinit var repo: ClipboardRepository
+    private lateinit var coordinator: ClipboardSyncCoordinator
     private var ws: WSClient? = null
-    private var lastHash: String = ""
-    private var suppressEcho = false
+    private var screenshotWatcher: ScreenshotWatcher? = null
 
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
-        if (suppressEcho) return@OnPrimaryClipChangedListener
-        val clipData = repo.readPrimaryClip() ?: return@OnPrimaryClipChangedListener
-        val (content, type) = clipData
-        val hash = content.hashCode().toString()
-        if (hash == lastHash) return@OnPrimaryClipChangedListener
-        lastHash = hash
-        scope.launch {
-            try {
-                repo.syncClipboard(type, content)
-            } catch (_: Exception) {
-            }
-        }
+        coordinator.onLocalClipboardChanged()
     }
 
     override fun onCreate() {
         super.onCreate()
         val app = application as SyncBridgeApp
-        repo = ClipboardRepository(this, app.api)
+        coordinator = app.clipboardSync
         createChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_sync_running)))
+        promoteToForeground()
 
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.addPrimaryClipChangedListener(clipListener)
 
         if (app.api.isAuthenticated) {
             app.networkManager.start()
-            ws = WSClient(app.api, app.networkManager) { entry -> handleRemoteClipboard(entry) }.also { it.connect() }
+            ws = WSClient(app.api, app.networkManager) { entry -> handleRemoteClipboard(entry) }
+                .also { it.connect() }
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureScreenshotWatcher()
+        return START_STICKY
+    }
+
+    private fun ensureScreenshotWatcher() {
+        if (!hasScreenshotAccess()) {
+            Log.w(TAG, "screenshot watcher waiting for Photos permission")
+            return
+        }
+        if (screenshotWatcher == null) {
+            screenshotWatcher = ScreenshotWatcher(this) { uri ->
+                coordinator.onScreenshotUri(uri)
+            }.also { it.start() }
         }
     }
 
     private fun handleRemoteClipboard(entry: ClipboardEntry) {
-        suppressEcho = true
-        repo.applyRemoteClip(entry)
-        lastHash = entry.content.hashCode().toString()
-        SyncEventBus.emitClipboard(entry)
+        val app = application as SyncBridgeApp
+        val localId = app.api.ensureDeviceId()
+        if (entry.sourceDeviceId.isNotBlank() && entry.sourceDeviceId == localId) {
+            coordinator.rememberSyncedEntry(entry)
+            SyncEventBus.emitClipboard(entry)
+            return
+        }
+
+        if (coordinator.shouldAutoApplyRemote(entry)) {
+            coordinator.applyRemoteClip(entry)
+        } else {
+            SyncEventBus.emitClipboard(entry)
+        }
+
+        if (!coordinator.settings.showClipboardNotifications) return
         val preview = if (entry.contentType.startsWith("image/")) {
             "Image received"
         } else {
@@ -71,10 +86,11 @@ class SyncClipboardService : Service() {
             if (content.length > 80) content.take(80) + "…" else content
         }
         showClipboardNotification(preview)
-        android.os.Handler(mainLooper).postDelayed({ suppressEcho = false }, 500)
     }
 
     override fun onDestroy() {
+        screenshotWatcher?.stop()
+        screenshotWatcher = null
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.removePrimaryClipChangedListener(clipListener)
         ws?.disconnect()
@@ -84,10 +100,20 @@ class SyncClipboardService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private fun hasScreenshotAccess(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_MEDIA_IMAGES) ==
+                PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                PackageManager.PERMISSION_GRANTED
+        }
+    }
+
     private fun showClipboardNotification(content: String) {
         val preview = if (content.length > 80) content.take(80) + "…" else content
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(CLIP_NOTIFICATION_ID, buildNotification("$preview"))
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(CLIP_NOTIFICATION_ID, buildNotification(preview))
     }
 
     private fun buildNotification(text: String): Notification {
@@ -103,11 +129,20 @@ class SyncClipboardService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_sync)
             .setContentIntent(pending)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()
+    }
+
+    private fun promoteToForeground() {
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_sync_running)))
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground failed", e)
+            stopSelf()
+        }
     }
 
     private fun createChannel() {
@@ -124,17 +159,27 @@ class SyncClipboardService : Service() {
     }
 
     companion object {
+        private const val TAG = "SyncClipboardService"
         const val CHANNEL_ID = "syncbridge_sync"
         const val NOTIFICATION_ID = 1
         const val CLIP_NOTIFICATION_ID = 2
 
         fun start(context: Context) {
-            val intent = Intent(context, SyncClipboardService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                val intent = Intent(context, SyncClipboardService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Unable to start sync service", e)
             }
+        }
+
+        fun restart(context: Context) {
+            stop(context)
+            start(context)
         }
 
         fun stop(context: Context) {

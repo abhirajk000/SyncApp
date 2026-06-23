@@ -26,8 +26,13 @@ final class AppState: ObservableObject {
 
     // ── Latest clipboard popup ────────────────────────────────────────────────
     @Published var latestClipboardPopup: ClipboardEntryResponse? = nil
+    /// One popup per unlock / window open — WS events do not stack popups.
+    private var latestPopupShownThisSession = false
+    @Published var isRefreshing = false
 
     @AppStorage("syncEnabled") private var syncEnabled = true
+    @AppStorage("autoApplyRemoteClipboard") private var autoApplyRemoteClipboard = true
+    @AppStorage("autoSyncImages") private var autoSyncImages = true
     @AppStorage("showNotifications") private var showNotifications = true
     @AppStorage("historyLimit") private var historyLimit = 100
 
@@ -58,6 +63,13 @@ final class AppState: ObservableObject {
     @Published var pairingExpiresAt: String? = nil
     @Published var isPairingActive: Bool = false
 
+    /// Set by AppDelegate — opens the standalone app window (not the menu bar popover).
+    var openMainWindowHandler: (() -> Void)?
+
+    func requestOpenMainWindow() {
+        openMainWindowHandler?()
+    }
+
     init() {
         let authService = AuthService(api: .shared)
         let networkManager = NetworkManager(auth: authService)
@@ -70,6 +82,22 @@ final class AppState: ObservableObject {
         self.wsClient = wsClient
         self.clipboardMonitor = clipboardMonitor
         self.fileTransferService = fileTransferService
+
+        clipboardMonitor.onLocalSync = { [weak self] entry in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if let idx = self.clipboardHistory.firstIndex(where: { $0.id == entry.id }) {
+                    self.clipboardHistory[idx] = entry
+                } else {
+                    self.clipboardHistory.insert(entry, at: 0)
+                }
+                let limit = max(10, min(self.historyLimit, 500))
+                if self.clipboardHistory.count > limit {
+                    self.clipboardHistory.removeLast(self.clipboardHistory.count - limit)
+                }
+                self.networkManager.markSync()
+            }
+        }
 
         wireWSClient()
 
@@ -114,6 +142,8 @@ final class AppState: ObservableObject {
         syncStatus = .connecting
         networkManager.start()
         wsClient.connect()
+        clipboardMonitor.autoSyncEnabled = syncEnabled
+        clipboardMonitor.autoSyncImagesEnabled = autoSyncImages
         if syncEnabled {
             clipboardMonitor.start()
         }
@@ -134,6 +164,7 @@ final class AppState: ObservableObject {
         do {
             let resp = try await authService.unlock(pin: pin)
             authState = .loggedIn(userId: resp.userId, deviceId: resp.deviceId)
+            latestPopupShownThisSession = false
             startServices()
             await refreshAll()
             await presentLatestClipboardPopup()
@@ -147,6 +178,8 @@ final class AppState: ObservableObject {
         stopServices()
         await authService.logout()
         authState = .loggedOut
+        latestClipboardPopup = nil
+        latestPopupShownThisSession = false
         clipboardHistory = []
         devices = []
         files = []
@@ -169,11 +202,17 @@ final class AppState: ObservableObject {
     // ── Data refresh ──────────────────────────────────────────────────────────
 
     func refreshAll() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.refreshClipboardHistory() }
             group.addTask { await self.refreshDevices() }
             group.addTask { await self.refreshFiles() }
         }
+    }
+
+    func refreshHome() async {
+        await refreshAll()
     }
 
     func refreshClipboardHistory() async {
@@ -186,8 +225,9 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Fetch and show the latest clipboard entry after auth (centered popup).
+    /// Fetch and show the latest clipboard entry after auth (centered popup, once per session).
     func presentLatestClipboardPopup() async {
+        guard !latestPopupShownThisSession, latestClipboardPopup == nil else { return }
         do {
             let entry = try await authService.getCurrentClipboard()
             latestClipboardPopup = entry
@@ -196,8 +236,13 @@ final class AppState: ObservableObject {
         }
     }
 
+    func resetLatestPopupSession() {
+        latestPopupShownThisSession = false
+    }
+
     func dismissLatestClipboardPopup() {
         latestClipboardPopup = nil
+        latestPopupShownThisSession = true
     }
 
     func refreshDevices() async {
@@ -217,8 +262,28 @@ final class AppState: ObservableObject {
     // ── Clipboard actions ─────────────────────────────────────────────────────
 
     func copyToClipboard(_ entry: ClipboardEntryResponse) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(entry.content, forType: .string)
+        if entry.contentType.hasPrefix("image/"),
+           entry.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Task {
+                if let full = try? await authService.getClipboardEntry(id: entry.id),
+                   !full.content.isEmpty {
+                    clipboardMonitor.applyRemoteEntry(full)
+                    return
+                }
+                if let data = await api.downloadClipboardThumbnail(entryId: entry.id),
+                   let image = NSImage(data: data) {
+                    await MainActor.run {
+                        let pb = NSPasteboard.general
+                        pb.clearContents()
+                        pb.writeObjects([image])
+                    }
+                    return
+                }
+                errorMessage = "Image unavailable"
+            }
+            return
+        }
+        clipboardMonitor.applyRemoteEntry(entry)
     }
 
     func deleteClipboardEntry(_ entry: ClipboardEntryResponse) async {
@@ -238,7 +303,8 @@ final class AppState: ObservableObject {
                 clipboardHistory[idx] = ClipboardEntryResponse(
                     id: updated.id, contentType: updated.contentType, content: updated.content,
                     sourceDeviceId: updated.sourceDeviceId, createdAt: updated.createdAt,
-                    pinned: pinned, expiresAt: updated.expiresAt
+                    pinned: pinned, expiresAt: updated.expiresAt,
+                    hasThumbnail: updated.hasThumbnail
                 )
             }
         } catch {
@@ -253,6 +319,43 @@ final class AppState: ObservableObject {
         } catch {
             errorMessage = errorDescription(error)
         }
+    }
+
+    func deleteFile(_ file: FileResponse) async {
+        do {
+            if file.isPinned {
+                try await authService.pinFile(id: file.id, pinned: false)
+            }
+            try await authService.deleteFile(id: file.id)
+            files.removeAll { $0.id == file.id }
+        } catch {
+            errorMessage = errorDescription(error)
+        }
+    }
+
+    func copyFileToClipboard(_ file: FileResponse) async {
+        guard file.status == "ready" else { return }
+        if file.mimeType.hasPrefix("image/") {
+            if let data = await api.downloadFileData(fileId: file.id, maxBytes: 10 * 1024 * 1024),
+               let image = NSImage(data: data) {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.writeObjects([image])
+            }
+            return
+        }
+        if isTextFileMime(file.mimeType) || ["md", "txt", "csv", "json"].contains((file.name as NSString).pathExtension.lowercased()) {
+            if let data = await api.downloadFileData(fileId: file.id, maxBytes: 512 * 1024),
+               let text = String(data: data, encoding: .utf8) {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(text, forType: .string)
+            }
+        }
+    }
+
+    private func isTextFileMime(_ mime: String) -> Bool {
+        mime.hasPrefix("text/") || mime == "application/json"
     }
 
     @discardableResult
@@ -385,15 +488,28 @@ final class AppState: ObservableObject {
                 sourceDeviceId: sourceDeviceId,
                 createdAt: createdAt,
                 pinned: payload["pinned"] as? Bool ?? false,
-                expiresAt: payload["expires_at"] as? String
+                expiresAt: payload["expires_at"] as? String,
+                hasThumbnail: payload["has_thumbnail"] as? Bool ?? contentType.hasPrefix("image/")
             )
-            clipboardMonitor.applyRemoteEntry(entry)
+
+            let localId = KeychainService.shared.deviceId ?? ""
+            if !sourceDeviceId.isEmpty, sourceDeviceId == localId {
+                clipboardMonitor.rememberSyncedEntry(entry)
+            } else {
+                clipboardMonitor.autoSyncImagesEnabled = autoSyncImages
+                if autoApplyRemoteClipboard,
+                   clipboardMonitor.shouldAutoApplyRemote(entry, localDeviceId: localId) {
+                    clipboardMonitor.applyRemoteEntry(entry)
+                }
+            }
+
             clipboardHistory.insert(entry, at: 0)
             let limit = max(10, min(historyLimit, 500))
             if clipboardHistory.count > limit { clipboardHistory.removeLast() }
 
             if showNotifications {
-                NotificationService.notifyClipboardUpdated(preview: content)
+                let preview = contentType.hasPrefix("image/") ? "Image received" : content
+                NotificationService.notifyClipboardUpdated(preview: preview)
             }
             syncStatus = .connected
             networkManager.markSync()
@@ -407,7 +523,8 @@ final class AppState: ObservableObject {
                 clipboardHistory[idx] = ClipboardEntryResponse(
                     id: e.id, contentType: e.contentType, content: e.content,
                     sourceDeviceId: e.sourceDeviceId, createdAt: e.createdAt,
-                    pinned: pinned, expiresAt: e.expiresAt
+                    pinned: pinned, expiresAt: e.expiresAt,
+                    hasThumbnail: e.hasThumbnail
                 )
             }
 

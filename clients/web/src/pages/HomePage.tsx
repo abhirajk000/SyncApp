@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   ClipboardEntry,
   FileEntry,
@@ -10,16 +11,30 @@ import {
   pinFile,
 } from "../api";
 import { AppEmptyState, AppSection, AppSkeleton } from "../components";
-import { TrustedDevicesBar } from "../components/TrustedDevicesBar";
+import { OnlineDevicesBar } from "../components/OnlineDevicesBar";
 import { ClipboardImageThumb } from "../components/ClipboardImageThumb";
 import { FileGridCard } from "../components/FileGridCard";
 import { ItemDeleteButton } from "../components/ItemDeleteButton";
-import { IconImage, IconText } from "../components/Icons";
+import { IconText } from "../components/Icons";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
 import { relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
 
 const RECENT_FILES_LIMIT = 12;
+
+function HomeRefreshButton({ refreshing, onClick }: { refreshing: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="ds-home-refresh-btn"
+      onClick={onClick}
+      disabled={refreshing}
+      aria-label="Refresh sync"
+    >
+      <RefreshCw size={16} strokeWidth={2.25} className={refreshing ? "ds-spin" : ""} />
+    </button>
+  );
+}
 
 function HomeTextRow({
   entry,
@@ -31,7 +46,6 @@ function HomeTextRow({
   const { toast } = useToast();
 
   async function copy() {
-    if (!entry) return;
     try {
       await copyEntryToClipboard(entry);
       toast("Copied", "success");
@@ -43,9 +57,48 @@ function HomeTextRow({
   return (
     <li className="ds-home-text-row">
       <button type="button" className="ds-home-text-row__body" onClick={() => void copy()}>
+        <span className="ds-home-text-row__doc-icon" aria-hidden>
+          <IconText size={14} />
+        </span>
         <span className="ds-home-text-row__meta-wrap">
           <span className="ds-home-text-row__content">{entry.content}</span>
           <span className="ds-home-text-row__meta">{relativeTime(entry.created_at)}</span>
+        </span>
+      </button>
+      <ItemDeleteButton onClick={onDelete} />
+    </li>
+  );
+}
+
+function HomeImageRow({
+  entry,
+  onDelete,
+}: {
+  entry: ClipboardEntry;
+  onDelete: () => void;
+}) {
+  const { toast } = useToast();
+  const [copying, setCopying] = useState(false);
+
+  async function copy() {
+    if (copying) return;
+    setCopying(true);
+    try {
+      await copyEntryToClipboard(entry);
+      toast("Image copied", "success");
+    } catch {
+      toast("Could not copy", "danger");
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  return (
+    <li className="ds-home-text-row ds-home-image-row">
+      <button type="button" className="ds-home-text-row__body" onClick={() => void copy()}>
+        <ClipboardImageThumb entryId={entry.id} className="ds-home-image-row__thumb" />
+        <span className="ds-home-text-row__meta">
+          Image · {relativeTime(entry.created_at)} · Tap to copy
         </span>
       </button>
       <ItemDeleteButton onClick={onDelete} />
@@ -57,24 +110,14 @@ function LatestTextCard({
   entry,
   onDelete,
 }: {
-  entry?: ClipboardEntry;
+  entry: ClipboardEntry;
   onDelete: () => void;
 }) {
   const { toast } = useToast();
 
-  if (!entry) {
-    return (
-      <div className="ds-latest-card ds-latest-card--text ds-latest-card--empty">
-        <p>No text yet — copy on any device to sync here.</p>
-      </div>
-    );
-  }
-
-  const textEntry = entry;
-
   async function copy() {
     try {
-      await copyEntryToClipboard(textEntry);
+      await copyEntryToClipboard(entry);
       toast("Copied", "success");
     } catch {
       toast("Could not copy", "danger");
@@ -82,16 +125,12 @@ function LatestTextCard({
   }
 
   return (
-    <div className="ds-latest-card ds-latest-card--text">
-      <div className="ds-latest-card__head">
-        <IconText size={18} />
-        <span>Latest text</span>
-        <ItemDeleteButton onClick={onDelete} className="ds-latest-card__delete" />
-      </div>
-      <button type="button" className="ds-latest-card__body" onClick={() => void copy()}>
-        <p className="ds-latest-card__text">{textEntry.content}</p>
-        <span className="ds-latest-card__meta">{relativeTime(textEntry.created_at)} · Tap to copy</span>
+    <div className="ds-home-glass-card">
+      <button type="button" className="ds-home-glass-card__body" onClick={() => void copy()}>
+        <p className="ds-home-glass-card__text">{entry.content}</p>
+        <span className="ds-home-glass-card__meta">{relativeTime(entry.created_at)}</span>
       </button>
+      <ItemDeleteButton onClick={onDelete} className="ds-home-glass-card__delete" />
     </div>
   );
 }
@@ -100,27 +139,17 @@ function LatestImageCard({
   entry,
   onDelete,
 }: {
-  entry?: ClipboardEntry;
+  entry: ClipboardEntry;
   onDelete: () => void;
 }) {
   const { toast } = useToast();
   const [copying, setCopying] = useState(false);
 
-  if (!entry) {
-    return (
-      <div className="ds-latest-card ds-latest-card--image ds-latest-card--empty">
-        <p>No image yet — screenshots and photos sync automatically.</p>
-      </div>
-    );
-  }
-
-  const imageEntry = entry;
-
   async function copy() {
     if (copying) return;
     setCopying(true);
     try {
-      await copyEntryToClipboard(imageEntry);
+      await copyEntryToClipboard(entry);
       toast("Image copied", "success");
     } catch {
       toast("Could not copy", "danger");
@@ -130,27 +159,25 @@ function LatestImageCard({
   }
 
   return (
-    <div className="ds-latest-card ds-latest-card--image">
-      <div className="ds-latest-card__head">
-        <IconImage size={18} />
-        <span>Latest image</span>
-        <ItemDeleteButton onClick={onDelete} className="ds-latest-card__delete" />
-      </div>
+    <div className="ds-home-glass-card">
       <button
         type="button"
-        className={`ds-latest-card__body ds-latest-card__body--image${copying ? " ds-home-media-tap--busy" : ""}`}
+        className={`ds-home-glass-card__body${copying ? " ds-home-media-tap--busy" : ""}`}
         onClick={() => void copy()}
         disabled={copying}
       >
-        <div className="ds-latest-card__image-wrap">
-          {imageEntry.has_thumbnail || !imageEntry.content ? (
-            <ClipboardImageThumb entryId={imageEntry.id} className="ds-latest-card__image" />
+        <div className="ds-home-glass-card__image-wrap">
+          {entry.has_thumbnail || !entry.content ? (
+            <ClipboardImageThumb entryId={entry.id} className="ds-home-glass-card__image" />
           ) : (
-            <img src={imageDataUrl(imageEntry)} alt="" className="ds-latest-card__image" loading="lazy" draggable={false} />
+            <img src={imageDataUrl(entry)} alt="" className="ds-home-glass-card__image" loading="lazy" draggable={false} />
           )}
         </div>
-        <span className="ds-latest-card__meta">{relativeTime(imageEntry.created_at)} · Tap to copy</span>
+        <span className="ds-home-glass-card__meta">
+          Tap to copy · {relativeTime(entry.created_at)}
+        </span>
       </button>
+      <ItemDeleteButton onClick={onDelete} className="ds-home-glass-card__delete" />
     </div>
   );
 }
@@ -160,10 +187,12 @@ export function HomePage() {
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (manual = false) => {
     if (!getAccessToken()) return;
-    setLoading(true);
+    if (manual) setRefreshing(true);
+    else setLoading(true);
     try {
       const [clip, fileData] = await Promise.all([
         fetchClipboardHistory(),
@@ -171,20 +200,22 @@ export function HomePage() {
       ]);
       setEntries(clip.entries.filter((e) => !e.pinned));
       setFiles(fileData.files.filter((f) => f.status === "ready" && !f.is_pinned));
+      if (manual) toast("Synced", "success");
     } catch {
-      /* ignore */
+      if (manual) toast("Could not refresh", "danger");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   useEffect(() => {
     function onNew() {
-      load();
+      void load();
     }
     window.addEventListener("syncbridge:clipboard-new", onNew);
     window.addEventListener("syncbridge:files-updated", onNew);
@@ -225,18 +256,10 @@ export function HomePage() {
     }
   }
 
-  const textEntries = useMemo(
+  const unpinnedSorted = useMemo(
     () =>
-      entries
-        .filter((e) => !isImageContentType(e.content_type))
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [entries],
-  );
-
-  const imageEntries = useMemo(
-    () =>
-      entries
-        .filter((e) => isImageContentType(e.content_type))
+      [...entries]
+        .filter((e) => !e.pinned)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [entries],
   );
@@ -249,18 +272,24 @@ export function HomePage() {
     [files],
   );
 
-  const latestText = textEntries[0];
-  const latestImage = imageEntries[0];
-  const olderText = textEntries.slice(1);
+  const latest = unpinnedSorted[0];
+  const earlier = unpinnedSorted.slice(1);
 
   if (loading) return <AppSkeleton rows={8} />;
 
-  const isEmpty = !latestText && !latestImage && recentFiles.length === 0;
+  const isEmpty = !latest && recentFiles.length === 0;
+
+  const header = (
+    <div className="ds-home-toolbar">
+      <OnlineDevicesBar />
+      <HomeRefreshButton refreshing={refreshing} onClick={() => void load(true)} />
+    </div>
+  );
 
   if (isEmpty) {
     return (
       <div className="ds-content-wide ds-home">
-        <TrustedDevicesBar />
+        {header}
         <AppEmptyState
           icon={<IconText size={22} />}
           title="Nothing synced yet"
@@ -272,18 +301,45 @@ export function HomePage() {
 
   return (
     <div className="ds-content-wide ds-home">
-      <TrustedDevicesBar />
+      {header}
 
-      <div className="ds-home-latest-grid">
-        <LatestTextCard
-          entry={latestText}
-          onDelete={() => latestText && void removeClipboard(latestText)}
-        />
-        <LatestImageCard
-          entry={latestImage}
-          onDelete={() => latestImage && void removeClipboard(latestImage)}
-        />
-      </div>
+      {latest && (
+        <AppSection title="Latest">
+          {isImageContentType(latest.content_type) ? (
+            <LatestImageCard
+              entry={latest}
+              onDelete={() => void removeClipboard(latest)}
+            />
+          ) : (
+            <LatestTextCard
+              entry={latest}
+              onDelete={() => void removeClipboard(latest)}
+            />
+          )}
+        </AppSection>
+      )}
+
+      {earlier.length > 0 && (
+        <AppSection title="Earlier">
+          <ul className="ds-home-text-list">
+            {earlier.map((entry) =>
+              isImageContentType(entry.content_type) ? (
+                <HomeImageRow
+                  key={entry.id}
+                  entry={entry}
+                  onDelete={() => void removeClipboard(entry)}
+                />
+              ) : (
+                <HomeTextRow
+                  key={entry.id}
+                  entry={entry}
+                  onDelete={() => void removeClipboard(entry)}
+                />
+              ),
+            )}
+          </ul>
+        </AppSection>
+      )}
 
       {recentFiles.length > 0 && (
         <AppSection title="Recent files">
@@ -298,20 +354,6 @@ export function HomePage() {
               />
             ))}
           </div>
-        </AppSection>
-      )}
-
-      {olderText.length > 0 && (
-        <AppSection title="Earlier text">
-          <ul className="ds-home-text-list">
-            {olderText.map((entry) => (
-              <HomeTextRow
-                key={entry.id}
-                entry={entry}
-                onDelete={() => void removeClipboard(entry)}
-              />
-            ))}
-          </ul>
         </AppSection>
       )}
     </div>

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNetwork } from "../design/NetworkProvider";
 import { fetchDevices } from "../api";
-import { filterTrustedDevices } from "../lib/devices";
 
 interface Props {
   connected?: boolean;
@@ -10,18 +9,18 @@ interface Props {
 export function ConnectionStatusPopover({ connected }: Props) {
   const net = useNetwork();
   const [open, setOpen] = useState(false);
-  const [trustedNames, setTrustedNames] = useState<string[]>([]);
+  const [onlineNames, setOnlineNames] = useState<string[]>([]);
 
   const isConnected = connected ?? net.wsConnected;
 
   useEffect(() => {
     if (!open) return;
-    void fetchDevices(true).then((data) => {
-      const names = filterTrustedDevices(data.devices)
+    void fetchDevices().then((data) => {
+      const names = data.devices
         .filter((d) => !d.is_current && (d.online || net.peers.some((p) => p.device_id === d.id)))
         .map((d) => d.name);
-      setTrustedNames(names);
-    }).catch(() => setTrustedNames([]));
+      setOnlineNames(names);
+    }).catch(() => setOnlineNames([]));
   }, [open, net.peers]);
 
   return (
@@ -47,11 +46,11 @@ export function ConnectionStatusPopover({ connected }: Props) {
             <div><dt>Service</dt><dd>{net.diagnostics ? "Online" : "—"}</dd></div>
             <div><dt>Live sync</dt><dd>{isConnected ? "Connected" : "Offline"}</dd></div>
           </dl>
-          {trustedNames.length > 0 && (
+          {onlineNames.length > 0 && (
             <div className="ds-conn-popover__devices">
               <p className="ds-conn-popover__subtitle">Online devices</p>
               <ul className="ds-trusted-devices__list ds-trusted-devices__list--compact">
-                {trustedNames.map((name) => (
+                {onlineNames.map((name) => (
                   <li key={name} className="ds-trusted-devices__item">
                     <span className="ds-trusted-devices__dot ds-trusted-devices__dot--on" aria-hidden />
                     <span className="ds-trusted-devices__name">{name}</span>

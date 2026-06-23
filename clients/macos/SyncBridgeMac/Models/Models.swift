@@ -61,9 +61,12 @@ struct DeviceResponse: Decodable, Identifiable {
     let name: String
     let platform: String
     let trusted: Bool
+    let trustedUntil: String?
     let lastSeenAt: String?
     enum CodingKeys: String, CodingKey {
-        case id, name, platform, trusted, lastSeenAt = "last_seen_at"
+        case id, name, platform, trusted
+        case trustedUntil = "trusted_until"
+        case lastSeenAt = "last_seen_at"
     }
 }
 
@@ -121,12 +124,47 @@ struct ClipboardEntryResponse: Decodable, Identifiable {
     let createdAt: String
     let pinned: Bool
     let expiresAt: String?
+    let hasThumbnail: Bool
+
     enum CodingKeys: String, CodingKey {
         case id, content, pinned
         case contentType = "content_type"
         case sourceDeviceId = "source_device_id"
         case createdAt = "created_at"
         case expiresAt = "expires_at"
+        case hasThumbnail = "has_thumbnail"
+    }
+
+    init(
+        id: String,
+        contentType: String,
+        content: String,
+        sourceDeviceId: String,
+        createdAt: String,
+        pinned: Bool,
+        expiresAt: String?,
+        hasThumbnail: Bool = false
+    ) {
+        self.id = id
+        self.contentType = contentType
+        self.content = content
+        self.sourceDeviceId = sourceDeviceId
+        self.createdAt = createdAt
+        self.pinned = pinned
+        self.expiresAt = expiresAt
+        self.hasThumbnail = hasThumbnail
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        contentType = try c.decode(String.self, forKey: .contentType)
+        content = try c.decode(String.self, forKey: .content)
+        sourceDeviceId = try c.decode(String.self, forKey: .sourceDeviceId)
+        createdAt = try c.decode(String.self, forKey: .createdAt)
+        pinned = try c.decode(Bool.self, forKey: .pinned)
+        expiresAt = try c.decodeIfPresent(String.self, forKey: .expiresAt)
+        hasThumbnail = try c.decodeIfPresent(Bool.self, forKey: .hasThumbnail) ?? false
     }
 }
 

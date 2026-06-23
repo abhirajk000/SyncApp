@@ -5,9 +5,11 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/syncbridge/api/internal/dto"
 	"github.com/syncbridge/api/internal/service"
@@ -233,6 +235,13 @@ func mapClipboardError(err error) *fiber.Error {
 	case errors.Is(err, service.ErrClipboardNotFound):
 		return fiber.NewError(fiber.StatusNotFound, "clipboard entry not found")
 	default:
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23514" {
+			return fiber.NewError(fiber.StatusBadRequest, "unsupported content_type for storage: run migration 000019")
+		}
+		if strings.Contains(err.Error(), "clipboard_content_type_check") {
+			return fiber.NewError(fiber.StatusBadRequest, "unsupported content_type: deploy migration 000019")
+		}
 		return fiber.NewError(fiber.StatusInternalServerError, "internal error")
 	}
 }

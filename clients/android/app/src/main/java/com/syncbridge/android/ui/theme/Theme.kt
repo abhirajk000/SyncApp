@@ -21,8 +21,8 @@ private val LightColors = lightColorScheme(
     surface = Color.White,
     surfaceVariant = Color(0xFFEEF2F7),
     onSurface = SyncTokens.SlateText,
-    onSurfaceVariant = SyncTokens.SlateMuted,
-    outline = Color(0x140C1222),
+    onSurfaceVariant = SyncTokens.SlateSecondary,
+    outline = SyncTokens.CardBorder,
     error = SyncTokens.Danger,
 )
 
@@ -55,6 +55,8 @@ fun SyncBridgeTheme(
                 primary = if (darkTheme) SyncTokens.TealDark else SyncTokens.Teal,
                 secondary = if (darkTheme) Color(0xFF818CF8) else SyncTokens.Indigo,
                 background = if (darkTheme) Color(0xFF080D18) else SyncTokens.SlateBg,
+                surface = if (darkTheme) Color(0xFF111827) else Color.White,
+                outline = if (darkTheme) Color(0xFF1E293B) else SyncTokens.CardBorder,
             )
         }
         darkTheme -> DarkColors

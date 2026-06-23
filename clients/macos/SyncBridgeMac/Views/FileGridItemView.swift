@@ -5,20 +5,40 @@ import SwiftUI
 struct FileGridItemView: View {
 
     @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
     let file: FileResponse
 
     @State private var image: NSImage?
     @State private var textPreview: String?
 
+    private var ready: Bool { file.status == "ready" }
+    private var canCopy: Bool {
+        ready && (file.mimeType.hasPrefix("image/") || isTextMime(file.mimeType) || ["md", "txt", "csv", "json"].contains(fileExtension(file.name).lowercased()))
+    }
+
     var body: some View {
         VStack(spacing: DS.Space.sm) {
-            ZStack {
+            ZStack(alignment: .topTrailing) {
                 RoundedRectangle(cornerRadius: DS.Radius.lg)
-                    .fill(.white)
-                    .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                    .fill(DS.Color.cardAdaptive(colorScheme))
+                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.12), radius: 8, y: 4)
                     .aspectRatio(1, contentMode: .fit)
 
                 previewContent
+
+                ItemActionMenu(
+                    showDownload: ready,
+                    showCopy: canCopy,
+                    showPin: true,
+                    showDelete: !file.isPinned,
+                    isPinned: file.isPinned,
+                    onDownload: { appState.downloadFile(file) },
+                    onCopy: { Task { await appState.copyFileToClipboard(file) } },
+                    onPin: { Task { await appState.pinFile(file, pinned: !file.isPinned) } },
+                    onDelete: { Task { await appState.deleteFile(file) } }
+                )
+                .padding(DS.Space.sm)
+                .zIndex(10)
             }
 
             Text(file.name)
@@ -29,13 +49,6 @@ struct FileGridItemView: View {
                 .frame(maxWidth: .infinity)
 
             TransferBadgeView(transferMode: file.transferMode)
-
-            Button("Pin") {
-                Task { await appState.pinFile(file, pinned: true) }
-            }
-            .font(DS.Font.label())
-            .buttonStyle(.plain)
-            .foregroundStyle(DS.Color.primary)
         }
         .task { await loadPreview() }
     }
@@ -53,7 +66,7 @@ struct FileGridItemView: View {
             ScrollView {
                 Text(textPreview)
                     .font(.system(size: 7))
-                    .foregroundStyle(Color(red: 0.12, green: 0.16, blue: 0.23))
+                    .foregroundStyle(DS.Color.textAdaptive(colorScheme))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
             }

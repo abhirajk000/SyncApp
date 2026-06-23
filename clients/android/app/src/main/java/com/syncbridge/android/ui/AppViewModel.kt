@@ -24,9 +24,10 @@ data class AppUiState(
     val isAuthenticated: Boolean = false,
     val connected: Boolean = false,
     val loading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: String? = null,
     val clipboardHistory: List<ClipboardEntry> = emptyList(),
-    val latestClipboard: ClipboardEntry? = null,
+    val latestClipboardPopup: ClipboardEntry? = null,
     val files: List<FileEntry> = emptyList(),
     val uploads: List<UploadProgress> = emptyList(),
     val darkMode: String = "system",
@@ -43,6 +44,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
+    private var clipboardPopupShownThisSession = false
+
     init {
         viewModelScope.launch {
             SyncEventBus.connected.collect { connected ->
@@ -53,7 +56,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             SyncEventBus.clipboardNew.collect { entry ->
                 _state.update { s ->
                     s.copy(
-                        latestClipboard = entry,
                         clipboardHistory = listOf(entry) + s.clipboardHistory.filter { it.id != entry.id },
                     )
                 }
@@ -64,29 +66,77 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 refreshFiles()
             }
         }
-        if (api.isAuthenticated) {
-            refreshAll()
-            SyncClipboardService.start(application)
+        viewModelScope.launch {
+            SyncEventBus.syncError.collect { message ->
+                _state.update { it.copy(error = message) }
+            }
         }
     }
 
-    fun refreshAll() {
+    fun resetClipboardPopupSession() {
+        clipboardPopupShownThisSession = false
+    }
+
+    fun dismissLatestClipboardPopup() {
+        clipboardPopupShownThisSession = true
+        _state.update { it.copy(latestClipboardPopup = null) }
+    }
+
+    fun presentLatestClipboardPopupIfNeeded() {
+        if (clipboardPopupShownThisSession) return
+        viewModelScope.launch {
+            val latest = runCatching { api.fetchCurrentClipboard() }.getOrNull() ?: return@launch
+            if (!clipboardPopupShownThisSession) {
+                _state.update { it.copy(latestClipboardPopup = latest) }
+            }
+        }
+    }
+
+    fun onAppResumed() {
+        viewModelScope.launch {
+            app.clipboardSync.syncExternalClipboardOnResume()
+            delay(400)
+            refreshAll(presentPopup = true)
+        }
+    }
+
+    fun refreshAll(presentPopup: Boolean = false) {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
                 val history = api.fetchClipboardHistory()
-                val latest = runCatching { api.fetchCurrentClipboard() }.getOrNull()
                 val files = api.listFiles()
                 _state.update {
                     it.copy(
                         loading = false,
                         clipboardHistory = history,
-                        latestClipboard = latest ?: history.firstOrNull(),
+                        files = files,
+                    )
+                }
+                if (presentPopup) presentLatestClipboardPopupIfNeeded()
+            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, error = e.message) }
+            }
+        }
+    }
+
+    fun refreshHome() {
+        viewModelScope.launch {
+            _state.update { it.copy(isRefreshing = true, error = null) }
+            try {
+                app.clipboardSync.syncExternalClipboardOnResume()
+                delay(400)
+                val history = api.fetchClipboardHistory()
+                val files = api.listFiles()
+                _state.update {
+                    it.copy(
+                        isRefreshing = false,
+                        clipboardHistory = history,
                         files = files,
                     )
                 }
             } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = e.message) }
+                _state.update { it.copy(isRefreshing = false, error = e.message) }
             }
         }
     }
@@ -96,9 +146,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(loading = true, error = null) }
             try {
                 api.unlock(pin)
-                SyncClipboardService.start(getApplication())
                 _state.update { it.copy(isAuthenticated = true, loading = false) }
-                refreshAll()
+                clipboardPopupShownThisSession = false
+                refreshAll(presentPopup = true)
                 onSuccess()
             } catch (e: ApiException) {
                 _state.update { it.copy(loading = false, error = e.message) }
@@ -111,6 +161,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun logout() {
         api.logout()
         SyncClipboardService.stop(getApplication())
+        clipboardPopupShownThisSession = false
         _state.value = AppUiState()
     }
 
@@ -130,13 +181,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun uploadUris(uris: List<Uri>) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
-            uploader.uploadUris(uris) { progress ->
+            val (ok, fail) = uploader.uploadUris(uris) { progress ->
                 _state.update { s ->
                     val list = s.uploads.filter { it.name != progress.name } + progress
                     s.copy(uploads = list)
                 }
+                if (progress.status == UploadStatus.Error) {
+                    _state.update { it.copy(error = progress.error ?: "Upload failed: ${progress.name}") }
+                }
             }
             refreshFiles()
+            SyncEventBus.emitFilesUpdated()
+            if (fail > 0) {
+                _state.update { it.copy(error = "$fail of ${uris.size} upload(s) failed") }
+            }
             delay(3000)
             _state.update { it.copy(uploads = it.uploads.filter { u -> u.status != UploadStatus.Success }) }
         }
@@ -164,10 +222,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteClipboard(entry: ClipboardEntry) {
+        viewModelScope.launch {
+            try {
+                api.deleteClipboard(entry.id)
+                _state.update { s ->
+                    s.copy(clipboardHistory = s.clipboardHistory.filter { it.id != entry.id })
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
     fun togglePinFile(file: FileEntry) {
         viewModelScope.launch {
             try {
                 api.pinFile(file.id, !file.isPinned)
+                refreshFiles()
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun deleteFile(file: FileEntry) {
+        viewModelScope.launch {
+            try {
+                if (file.isPinned) api.pinFile(file.id, false)
+                api.deleteFile(file.id)
                 refreshFiles()
             } catch (e: Exception) {
                 _state.update { it.copy(error = e.message) }
@@ -185,9 +268,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(loading = true, error = null) }
             try {
                 api.confirmPairing(otp, name)
-                SyncClipboardService.start(getApplication())
                 _state.update { it.copy(isAuthenticated = true, loading = false) }
-                refreshAll()
+                clipboardPopupShownThisSession = false
+                refreshAll(presentPopup = true)
                 onSuccess()
             } catch (e: ApiException) {
                 _state.update { it.copy(loading = false, error = e.message) }

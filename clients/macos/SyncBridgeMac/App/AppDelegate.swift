@@ -4,6 +4,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // ── Public ────────────────────────────────────────────────────────────────
@@ -14,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
+    private var settingsWindow: NSWindow?
+    private var mainWindow: NSWindow?
+    private var mainWindowDelegate: MainWindowDelegate?
     private var eventMonitor: Any?
 
     // MARK: – Application lifecycle
@@ -25,8 +29,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupPopover()
         setupEventMonitor()
+        setupApplicationIcon()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(openSettings),
+            name: .syncBridgeOpenSettings,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(openMainWindow),
+            name: .syncBridgeOpenMainWindow,
+            object: nil
+        )
 
         Task { @MainActor in
+            self.appState.openMainWindowHandler = { [weak self] in
+                self?.openMainWindow()
+            }
             self.appState.onAppear()
         }
     }
@@ -50,8 +71,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func loadMenuBarIcon() -> NSImage? {
-        if let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
-           let image = NSImage(contentsOf: url) {
+        let image: NSImage? = {
+            if let named = NSImage(named: "MenuBarIcon") { return named }
+            if let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png") {
+                return NSImage(contentsOf: url)
+            }
+            return nil
+        }()
+        if let image {
             image.size = NSSize(width: 18, height: 18)
             return image
         }
@@ -62,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 340, height: 520)
+        popover.contentSize = NSSize(width: MenuBarLayout.width, height: MenuBarLayout.height)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: MenuBarView()
@@ -91,7 +118,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Open SyncBridge", action: #selector(openPopover), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Open Menu Bar Panel", action: #selector(openPopover), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Open App Window", action: #selector(openMainWindow), keyEquivalent: "o"))
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit SyncBridge", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -108,13 +136,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func openSettings() {
-        if #available(macOS 14.0, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+    @objc private func openMainWindow() {
+        popover?.performClose(nil)
+
+        if let mainWindow {
+            NSApp.setActivationPolicy(.regular)
+            mainWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
         }
+
+        let hosting = NSHostingController(
+            rootView: MenuBarView()
+                .environmentObject(appState)
+                .appPresentationMode(.window)
+        )
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: 0, y: 0,
+                width: MenuBarLayout.windowDefaultWidth,
+                height: MenuBarLayout.windowDefaultHeight
+            ),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "SyncBridge"
+        window.contentViewController = hosting
+        window.minSize = NSSize(width: MenuBarLayout.windowMinWidth, height: MenuBarLayout.windowMinHeight)
+        window.isReleasedWhenClosed = false
+        window.center()
+
+        let delegate = MainWindowDelegate { [weak self] in
+            guard let self else { return }
+            self.mainWindow = nil
+            self.mainWindowDelegate = nil
+            if self.popover?.isShown != true {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
+        window.delegate = delegate
+        mainWindowDelegate = delegate
+        mainWindow = window
+
+        NSApp.setActivationPolicy(.regular)
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func openSettings() {
+        popover?.performClose(nil)
+
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let hosting = NSHostingController(
+            rootView: SettingsView()
+                .environmentObject(appState)
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 520),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "SyncBridge Settings"
+        window.contentViewController = hosting
+        window.isReleasedWhenClosed = false
+        window.center()
+        settingsWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func setupApplicationIcon() {
+        if let icon = NSImage(named: "AppIcon") {
+            NSApp.applicationIconImage = icon
+            return
+        }
+        guard let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+              let icon = NSImage(contentsOf: url) else { return }
+        NSApp.applicationIconImage = icon
     }
 
     // MARK: – Click-outside dismissal
@@ -125,5 +230,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 popover.performClose(nil)
             }
         }
+    }
+}
+
+extension Notification.Name {
+    static let syncBridgeOpenSettings = Notification.Name("SyncBridgeOpenSettings")
+    static let syncBridgeOpenMainWindow = Notification.Name("SyncBridgeOpenMainWindow")
+}
+
+private final class MainWindowDelegate: NSObject, NSWindowDelegate {
+    private let onClose: () -> Void
+
+    init(onClose: @escaping () -> Void) {
+        self.onClose = onClose
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        onClose()
     }
 }

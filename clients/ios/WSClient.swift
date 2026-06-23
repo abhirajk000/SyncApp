@@ -8,6 +8,7 @@ final class WSClient: ObservableObject {
     @Published var isConnected = false
 
     var onClipboardNew: ((ClipboardEntry) -> Void)?
+    var onFilesUpdated: (() -> Void)?
 
     private var task: URLSessionWebSocketTask?
     private var receiveLoop = false
@@ -68,14 +69,21 @@ final class WSClient: ObservableObject {
            let payload = json["payload"] as? [String: Any],
            let id = payload["entry_id"] as? String,
            let content = payload["content"] as? String {
+            let contentType = payload["content_type"] as? String ?? "text/plain"
             let entry = ClipboardEntry(
                 id: id,
                 content: content,
-                contentType: payload["content_type"] as? String ?? "text/plain",
+                contentType: contentType,
                 createdAt: payload["created_at"] as? String ?? ISO8601DateFormatter().string(from: Date()),
-                pinned: payload["pinned"] as? Bool ?? false
+                pinned: payload["pinned"] as? Bool ?? false,
+                hasThumbnail: payload["has_thumbnail"] as? Bool ?? contentType.hasPrefix("image/"),
+                sourceDeviceId: payload["source_device_id"] as? String ?? ""
             )
             onClipboardNew?(entry)
+        }
+
+        if type == "file.ready" || type == "file.progress" {
+            onFilesUpdated?()
         }
     }
 
@@ -95,4 +103,6 @@ struct ClipboardEntry: Identifiable, Equatable {
     let contentType: String
     let createdAt: String
     let pinned: Bool
+    var hasThumbnail: Bool = false
+    var sourceDeviceId: String = ""
 }

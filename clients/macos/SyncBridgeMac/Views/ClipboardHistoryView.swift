@@ -22,17 +22,17 @@ struct ClipboardHistoryView: View {
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .font(.subheadline)
                 TextField("Search clipboard…", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.subheadline)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .padding(.horizontal, DS.Space.md)
+            .padding(.vertical, DS.Space.sm)
+            .background(Color.primary.opacity(0.05))
 
-            Divider()
+            Divider().opacity(0.35)
 
             if filtered.isEmpty {
                 emptyState
@@ -43,21 +43,24 @@ struct ClipboardHistoryView: View {
                             sectionHeader("Temporary")
                             ForEach(temporary) { entry in
                                 ClipboardEntryRow(entry: entry)
-                                Divider()
+                                Divider().opacity(0.35)
                             }
                         }
                         if !pinned.isEmpty {
                             sectionHeader("Pinned")
                             ForEach(pinned) { entry in
                                 ClipboardEntryRow(entry: entry)
-                                Divider()
+                                Divider().opacity(0.35)
                             }
                         }
                     }
+                    .padding(.horizontal, DS.Space.sm)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .task { await appState.refreshClipboardHistory() }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -79,7 +82,6 @@ struct ClipboardEntryRow: View {
 
     @EnvironmentObject var appState: AppState
     let entry: ClipboardEntryResponse
-    @State private var isCopied = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -89,7 +91,7 @@ struct ClipboardEntryRow: View {
                 .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.content)
+                Text(ClipboardDisplay.previewText(for: entry))
                     .font(.subheadline)
                     .lineLimit(2)
                     .truncationMode(.tail)
@@ -113,42 +115,10 @@ struct ClipboardEntryRow: View {
 
             Spacer()
 
-            HStack(spacing: 4) {
-                Button {
-                    Task { await appState.pinClipboardEntry(entry, pinned: !entry.pinned) }
-                } label: {
-                    Image(systemName: entry.pinned ? "pin.slash" : "pin")
-                        .foregroundColor(entry.pinned ? .orange : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(entry.pinned ? "Unpin" : "Pin")
-
-                Button {
-                    appState.copyToClipboard(entry)
-                    withAnimation { isCopied = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        withAnimation { isCopied = false }
-                    }
-                } label: {
-                    Image(systemName: isCopied ? "checkmark.circle.fill" : "doc.on.doc")
-                        .foregroundColor(isCopied ? .green : .accentColor)
-                }
-                .buttonStyle(.plain)
-
-                if !entry.pinned {
-                    Button(role: .destructive) {
-                        Task { await appState.deleteClipboardEntry(entry) }
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            ClipboardItemActionMenu(entry: entry)
         }
-        .padding(.horizontal, DS.Space.lg)
-        .padding(.vertical, DS.Space.md)
-        .glassCard(cornerRadius: DS.Radius.md)
+        .padding(.horizontal, DS.Space.md)
+        .padding(.vertical, DS.Space.sm)
         .contentShape(Rectangle())
         .onTapGesture { appState.copyToClipboard(entry) }
     }
