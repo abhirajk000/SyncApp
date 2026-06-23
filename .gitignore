@@ -27,13 +27,14 @@ vendor/
 *.swo
 .DS_Store
 
-# Data
-data/
+# Local runtime data (repo root only — not Android source packages)
+/data/
 
 # Node / frontend
 node_modules/
 clients/web/dist/
 clients/web/node_modules/
+releases/
 *.tsbuildinfo
 
 # Docker volumes (local dev only)

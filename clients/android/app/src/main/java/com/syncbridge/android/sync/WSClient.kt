@@ -3,6 +3,7 @@ package com.syncbridge.android.sync
 import android.util.Log
 import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.ClipboardEntry
+import com.syncbridge.android.network.NetworkManager
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
