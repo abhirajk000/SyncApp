@@ -16,19 +16,20 @@ import SwiftUI
 struct MenuBarView: View {
 
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var localSendManager: LocalSendManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appPresentationMode) private var presentationMode
-    @State private var selectedTab: AppNavTab = .home
+    @State private var selectedTab: AppNavTab = .clipboard
 
     private var isWindow: Bool { presentationMode == .window }
 
     var body: some View {
         ZStack {
                 Group {
-                    if case .loggedOut = appState.authState {
-                        LoginView()
-                    } else {
+                    if case .loggedIn = appState.authState {
                         mainContent
+                    } else {
+                        ConnectingView()
                     }
                 }
                 .frame(
@@ -64,113 +65,56 @@ struct MenuBarView: View {
     // MARK: – Main content (authenticated)
 
     private var mainContent: some View {
-        ZStack {
-            LiquidBackground()
-            VStack(spacing: 0) {
-                header
-                Divider().opacity(0.35)
-                DockNavBar(selected: $selectedTab)
-                tabContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .frame(height: isWindow ? nil : MenuBarLayout.contentHeight)
-            }
+        AppShell(
+            selectedTab: selectedTab,
+            connected: appState.syncStatus == .connected,
+            refreshing: appState.isRefreshing,
+            onRefresh: { Task { await appState.refreshHome() } },
+            onNavigate: { tab in
+                withAnimation(.easeOut(duration: DS.Duration.normal)) {
+                    selectedTab = tab
+                }
+            },
+            content: tabContent
+        )
+        .overlay(alignment: .topTrailing) {
+            macMenuButton
+                .padding(.trailing, DS.Space.md)
+                .padding(.top, 6)
         }
     }
 
-    // MARK: – Header
-
-    private var header: some View {
-        HStack(spacing: DS.Space.sm) {
-            Image(nsImage: NSImage(named: "AppLogo") ?? NSImage())
-                .resizable()
-                .scaledToFit()
-                .frame(width: 20, height: 20)
-
-            Text("SyncBridge")
-                .font(DS.Font.headline())
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-
-            Spacer(minLength: 4)
-
-            statusBadge
-
-            Menu {
-                Button {
-                    appState.requestOpenMainWindow()
-                } label: {
-                    Label("Open App Window", systemImage: "macwindow")
-                }
-                Divider()
-                Button {
-                    Task { await appState.initiatePairing() }
-                } label: {
-                    Label("Pair device", systemImage: "qrcode.viewfinder")
-                }
-                Divider()
-                Button(role: .destructive) {
-                    Task { await appState.logout() }
-                } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-        }
-        .frame(height: MenuBarLayout.headerHeight)
-        .padding(.horizontal, DS.Space.md)
-        .background(DS.Color.cardAdaptive(colorScheme).opacity(0.6))
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(DS.Color.borderAdaptive(colorScheme).opacity(0.25))
-                .frame(height: 1)
-        }
-    }
-
-    @ViewBuilder
-    private var statusBadge: some View {
+    private var macMenuButton: some View {
         Menu {
-            Text("Server: \(appState.networkManager.diagnostics != nil ? "Online" : "—")")
-            Text("Peers: \(appState.networkManager.peers.count)")
-            Text("Transfer: \(appState.networkManager.currentTransferMode)")
-            if let ms = appState.networkManager.latencyMs {
-                Text("Latency: \(ms) ms")
+            Button { appState.requestOpenMainWindow() } label: {
+                Label("Open App Window", systemImage: "macwindow")
             }
-            if let sync = appState.networkManager.lastSyncAt {
-                Text("Last sync: \(sync)")
+            Divider()
+            Button { Task { await appState.initiatePairing() } } label: {
+                Label("Pair device", systemImage: "qrcode.viewfinder")
+            }
+            Divider()
+            Button(role: .destructive) { Task { await appState.logout() } } label: {
+                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
             }
         } label: {
-            switch appState.syncStatus {
-            case .connected:
-                AppBadge(status: .connected, label: "Connected")
-            case .syncing:
-                AppBadge(status: .syncing)
-            case .connecting:
-                AppBadge(status: .syncing, label: "Connecting")
-            case .disconnected:
-                AppBadge(status: .offline)
-            case .error:
-                AppBadge(status: .disconnected, label: "Error")
-            }
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.secondary)
         }
         .menuStyle(.borderlessButton)
+        .fixedSize()
     }
-
-    // MARK: – Tab content
-
     @ViewBuilder
-    private var tabContent: some View {
-        switch selectedTab {
-        case .home:
-            HomeView(onSeeAllFiles: { selectedTab = .files })
-        case .pinned:
-            PinnedClipboardView()
-        case .send:
+    private func tabContent(_ tab: AppNavTab) -> some View {
+        switch tab {
+        case .cloudSend:
             SendTabView()
+        case .localSend:
+            LocalSendView()
+                .environmentObject(localSendManager)
+        case .clipboard:
+            ClipboardHubView()
         case .files:
             FilesView()
         case .settings:
@@ -254,11 +198,11 @@ struct FilesView: View {
 
     private var emptyState: some View {
         AppEmptyState(
-            icon: "folder.badge.plus",
+            illustration: .files,
             title: fileTab == .pinned ? "No pinned files" : "No files yet",
             description: fileTab == .pinned
                 ? "Pin files to keep them across devices."
-                : "Send files from the Send tab or another device.",
+                : "Receive files via Local Send or from cloud sync on other devices.",
             actionTitle: fileTab == .temporary ? "Send File…" : nil,
             action: fileTab == .temporary ? openFilePicker : nil
         )
@@ -362,7 +306,7 @@ struct DevicesView: View {
         .overlay {
             if appState.devices.isEmpty {
                 AppEmptyState(
-                    icon: "desktopcomputer.and.arrow.down",
+                    illustration: .devices,
                     title: "No paired devices",
                     description: "Pair another phone or computer to sync clipboard and files.",
                     actionTitle: "Pair a Device",

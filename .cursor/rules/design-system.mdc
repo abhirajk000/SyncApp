@@ -1,0 +1,47 @@
+---
+description: SyncBridge global design system — tokens and shared components only
+alwaysApply: true
+---
+
+# Design System (mandatory)
+
+**Source of truth:** `shared/design-system.md` · `shared/theme/tokens.json`  
+**Pre-Phase audit:** `docs/DESIGN_AUDIT.md`
+
+## Phase 1 structure
+
+```
+shared/
+├── design-system.md
+├── theme/          tokens.json, animations.json, web/*.css
+├── components/     contracts.ts, catalog.md
+└── ui/             layout.ts, animations.ts, web/primitives.css
+```
+
+## Rules
+
+1. **Never** invent colors, spacing, radius, shadows, or typography outside tokens.
+2. **Always** use shared components — never build one-off UI in screens.
+3. **Outfit** is the only brand font (400/500/600/700).
+4. **Spacing:** 4, 8, 12, 16, 20, 24, 32, 40, 48 only.
+5. **Radius:** cards/dialogs 28px · buttons 20px · inputs 18px · chips 999px.
+6. **Shadows:** small, medium, large, floating — four levels only.
+7. If a component does not exist, add it to **all platforms** + `shared/components/contracts.ts`.
+
+## Platform token files
+
+| Platform | File |
+|----------|------|
+| Canonical | `shared/theme/tokens.json` |
+| Web CSS | `shared/theme/web/tokens.css` |
+| Android | `clients/android/.../ui/theme/DesignTokens.kt` |
+| iOS | `clients/ios/DesignSystem.swift` |
+| macOS | `clients/macos/.../Design/DesignSystem.swift` |
+
+Run `./scripts/sync-design-tokens.sh` after token edits.
+
+## Shared components
+
+`AppCard` · `AppButton`/`PrimaryButton` · `AppEmptyState` · `DeviceCard` · `TransferCard` · `ClipboardCard` · `AppModal` · `DockBottomBar` · `SegmentedTabs`
+
+Contracts: `shared/components/contracts.ts`

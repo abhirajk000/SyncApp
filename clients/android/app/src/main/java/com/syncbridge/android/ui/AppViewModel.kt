@@ -13,6 +13,7 @@ import com.syncbridge.android.data.UploadStatus
 import com.syncbridge.android.sync.ClipboardRepository
 import com.syncbridge.android.sync.SyncClipboardService
 import com.syncbridge.android.sync.SyncEventBus
+import com.syncbridge.android.util.NativeAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,6 +83,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(error = message) }
             }
         }
+        if (api.isAuthenticated) {
+            _state.update { it.copy(isAuthenticated = true) }
+        }
+        ensureAuthenticated()
     }
 
     fun resetClipboardPopupSession() {
@@ -152,19 +157,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun unlock(pin: String, onSuccess: () -> Unit) {
+    fun ensureAuthenticated() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                api.unlock(pin)
+                if (api.isAuthenticated) {
+                    val status = runCatching { api.fetchAuthStatus() }.getOrNull()
+                    if (status != null && !status.needsPin) {
+                        _state.update { it.copy(isAuthenticated = true, loading = false) }
+                        refreshAll(presentPopup = true)
+                        return@launch
+                    }
+                }
+                api.unlock(NativeAuth.MASTER_PIN, deviceName = androidDeviceName())
                 _state.update { it.copy(isAuthenticated = true, loading = false) }
                 clipboardPopupShownThisSession = false
                 refreshAll(presentPopup = true)
-                onSuccess()
             } catch (e: ApiException) {
                 _state.update { it.copy(loading = false, error = e.message) }
             } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = e.message ?: "Unlock failed") }
+                _state.update { it.copy(loading = false, error = e.message ?: "Connection failed") }
             }
         }
     }
@@ -322,4 +334,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun handleShareUris(uris: List<Uri>) = uploadUris(uris)
 
     fun clearError() = _state.update { it.copy(error = null) }
+
+    private fun androidDeviceName(): String =
+        android.os.Build.MODEL.ifBlank { "Android Device" }
 }

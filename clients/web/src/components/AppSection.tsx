@@ -8,12 +8,12 @@ interface Props {
 
 export function AppSection({ title, children, action }: Props) {
   return (
-    <section style={{ marginBottom: "var(--space-6)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-3)" }}>
-        <h2 className="ds-section-title" style={{ margin: 0 }}>{title}</h2>
+    <section className="sb-oneui-section">
+      <div className="sb-section__header">
+        <h2 className="ds-section-title">{title}</h2>
         {action}
       </div>
-      {children}
+      <div className="sb-oneui-container sb-oneui-container--glass">{children}</div>
     </section>
   );
 }

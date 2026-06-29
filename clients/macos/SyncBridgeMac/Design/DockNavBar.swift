@@ -1,37 +1,38 @@
-// DockNavBar.swift — Web-style dock navigation (top-mounted for macOS popover).
+// DockNavBar.swift — App navigation tabs (shared with DockBottomBar)
 
 import SwiftUI
 
 enum AppNavTab: String, Hashable {
-    case home = "Home"
-    case pinned = "Pinned"
-    case send = "Send"
+    case cloudSend = "Cloud Send"
+    case localSend = "Local Send"
+    case clipboard = "Clipboard"
     case files = "Files"
     case settings = "Settings"
 
     var icon: String {
         switch self {
-        case .home: return "house.fill"
-        case .pinned: return "pin.fill"
-        case .send: return "paperplane.fill"
-        case .files: return "folder.fill"
-        case .settings: return "gearshape.fill"
+        case .cloudSend: return "icloud.and.arrow.up"
+        case .localSend: return "wifi"
+        case .clipboard: return "doc.on.clipboard.fill"
+        case .files: return "folder"
+        case .settings: return "gearshape"
         }
     }
 }
 
+// Top-mounted dock (popover layout — optional)
 struct DockNavBar: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Binding var selected: AppNavTab
 
-    private let leftTabs: [AppNavTab] = [.home, .pinned]
+    private let leftTabs: [AppNavTab] = [.cloudSend, .localSend]
     private let rightTabs: [AppNavTab] = [.files, .settings]
 
     var body: some View {
         ZStack(alignment: .top) {
             dockBar
-            sendFab
+            clipboardFab
         }
         .frame(height: MenuBarLayout.dockNavHeight)
         .padding(.horizontal, DS.Space.sm)
@@ -71,41 +72,34 @@ struct DockNavBar: View {
         .frame(height: MenuBarLayout.dockBarHeight)
     }
 
-    private var sendFab: some View {
-        Button {
-            selected = .send
+    private var clipboardFab: some View {
+        let selected = selected == .clipboard
+        return Button {
+            self.selected = .clipboard
         } label: {
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.23, green: 0.51, blue: 0.96),
-                                Color(red: 0.39, green: 0.40, blue: 0.95),
-                                Color(red: 0.49, green: 0.23, blue: 0.93)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .fill(DS.Color.primary)
                     .frame(width: MenuBarLayout.dockFabSize, height: MenuBarLayout.dockFabSize)
-                    .shadow(color: Color(red: 0.23, green: 0.51, blue: 0.96).opacity(0.5), radius: 12, y: 6)
+                    .shadow(color: DS.Color.primary.opacity(selected ? 0.55 : 0.4), radius: selected ? 16 : 12, y: 6)
                     .overlay {
-                        if selected == .send {
+                        if selected {
                             Circle()
-                                .stroke(Color(red: 0.39, green: 0.40, blue: 0.95).opacity(0.35), lineWidth: 4)
+                                .stroke(DS.Color.primary.opacity(0.35), lineWidth: 4)
                                 .frame(width: MenuBarLayout.dockFabSize + 8, height: MenuBarLayout.dockFabSize + 8)
                         }
                     }
 
-                Image(systemName: AppNavTab.send.icon)
+                Image(systemName: AppNavTab.clipboard.icon)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.white)
             }
+            .scaleEffect(selected ? 1.06 : 1)
+            .animation(.spring(response: 0.32, dampingFraction: 0.72), value: selected)
         }
         .buttonStyle(.plain)
         .offset(y: MenuBarLayout.dockFabSize * 0.28)
-        .help("Send")
+        .help("Clipboard")
     }
 
     private func dockItem(_ tab: AppNavTab) -> some View {

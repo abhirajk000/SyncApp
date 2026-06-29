@@ -1,6 +1,5 @@
 package com.syncbridge.android.ui.components
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -8,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,7 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.ClipboardEntry
 import com.syncbridge.android.ui.theme.SyncTokens
-import com.syncbridge.android.util.clipboardImageBytes
+import com.syncbridge.android.util.decodeThumbnailBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -34,11 +34,19 @@ fun ClipboardImageThumb(
 ) {
     var bitmap by remember(entry.id) { mutableStateOf<android.graphics.Bitmap?>(null) }
 
-    LaunchedEffect(entry.id, entry.content) {
+    LaunchedEffect(entry.id) {
         withContext(Dispatchers.IO) {
-            val bytes = clipboardImageBytes(entry)
-                ?: api.downloadClipboardThumbnailBytes(entry.id)
-            bytes?.let { bitmap = BitmapFactory.decodeByteArray(it, 0, it.size) }
+            val bytes = api.downloadClipboardThumbnailBytes(entry.id) ?: return@withContext
+            decodeThumbnailBitmap(bytes)?.let { decoded ->
+                bitmap = decoded
+            }
+        }
+    }
+
+    DisposableEffect(entry.id) {
+        onDispose {
+            bitmap?.recycle()
+            bitmap = null
         }
     }
 

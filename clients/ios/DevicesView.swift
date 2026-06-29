@@ -1,4 +1,4 @@
-// DevicesView.swift — Matches Android DevicesScreen.kt
+// DevicesView.swift — Trusted devices (system names only)
 
 import SwiftUI
 
@@ -9,47 +9,48 @@ struct DevicesView: View {
 
     @State private var devices: [DeviceItem] = []
     @State private var loading = true
-    @State private var renameTarget: DeviceItem?
-    @State private var renameValue = ""
-    @State private var saving = false
+    @State private var removeTarget: DeviceItem?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SyncTokens.space4) {
                 HStack(spacing: SyncTokens.space2) {
                     Button(action: onBack) {
-                        Image(systemName: "arrow.left")
-                            .font(.system(size: 18, weight: .semibold))
+                        Image(systemName: "arrow.left").font(SyncFont.body().weight(.semibold))
                     }
-                    Text("Devices")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                    Text("Devices").font(SyncFont.title2xl())
                 }
 
                 if loading {
-                    ProgressView().frame(maxWidth: .infinity)
-                }
-
-                if let current = devices.first(where: { $0.isCurrent }) {
-                    AppSectionTitle(title: "This device")
-                    deviceCard(current, showActions: true)
-                }
-
-                AppSectionTitle(title: "Trusted devices")
-                let others = devices.filter { !$0.isCurrent }
-                if others.isEmpty {
-                    AppCard {
-                        Text("No other devices yet. Pair from your Mac or web settings.")
-                            .font(.system(size: 14, design: .rounded))
-                            .foregroundStyle(AppSurfaces.onSurfaceVariant(colorScheme))
-                    }
+                    AppSkeleton(rows: 4)
                 } else {
-                    ForEach(others) { device in
-                        deviceCard(
-                            device,
-                            showActions: true,
-                            showTrust: !isDeviceTrusted(device),
-                            showRemove: true
+                    if let current = devices.first(where: { $0.isCurrent }) {
+                        AppSectionTitle(title: "This device")
+                        ContainerGroup {
+                            trustedDeviceContent(current)
+                        }
+                    }
+
+                    AppSectionTitle(title: "Trusted devices")
+                    let others = devices.filter { !$0.isCurrent }
+                    if others.isEmpty {
+                        AppEmptyState(
+                            illustration: .devices,
+                            title: "No other devices",
+                            description: "Pair from your Mac or web settings to see them here."
                         )
+                    } else {
+                        ContainerGroup {
+                            ForEach(Array(others.enumerated()), id: \.element.id) { index, device in
+                                ContainerGroupItem(showDivider: index < others.count - 1) {
+                                    trustedDeviceContent(
+                                        device,
+                                        showTrust: !isDeviceTrusted(device),
+                                        showRemove: true
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -58,93 +59,53 @@ struct DevicesView: View {
             .padding(.bottom, SyncTokens.space10 + SyncTokens.dockHeight)
         }
         .task { await load() }
-        .alert("Rename device", isPresented: Binding(
-            get: { renameTarget != nil },
-            set: { if !$0 { renameTarget = nil } }
-        )) {
-            TextField("Device name", text: $renameValue)
-            Button("Save") {
-                guard let target = renameTarget else { return }
+        .alert("Remove device", isPresented: Binding(get: { removeTarget != nil }, set: { if !$0 { removeTarget = nil } })) {
+            Button("Remove", role: .destructive) {
+                guard let target = removeTarget else { return }
                 Task {
-                    saving = true
-                    defer { saving = false }
                     guard let token = appState.accessToken else { return }
-                    try? await DeviceAPI.renameDevice(
-                        serverURL: appState.serverURL,
-                        accessToken: token,
-                        id: target.id,
-                        name: renameValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    )
-                    renameTarget = nil
+                    try? await DeviceAPI.revokeDevice(serverURL: appState.serverURL, accessToken: token, id: target.id)
+                    removeTarget = nil
                     await load()
                 }
             }
-            .disabled(saving || renameValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            Button("Cancel", role: .cancel) { renameTarget = nil }
+            Button("Cancel", role: .cancel) { removeTarget = nil }
+        } message: {
+            if let target = removeTarget {
+                Text("Remove \"\(target.name)\" from your account?")
+            }
         }
     }
 
     @ViewBuilder
-    private func deviceCard(
-        _ device: DeviceItem,
-        showActions: Bool,
-        showTrust: Bool = false,
-        showRemove: Bool = false
-    ) -> some View {
-        AppCard {
-            VStack(alignment: .leading, spacing: SyncTokens.space3) {
-                HStack(spacing: 8) {
+    private func trustedDeviceContent(_ device: DeviceItem, showTrust: Bool = false, showRemove: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: SyncTokens.space3) {
+                HStack(spacing: SyncTokens.space2) {
                     Circle()
-                        .fill(device.online ? SyncTokens.teal : Color.gray)
-                        .frame(width: 8, height: 8)
-                    Text(device.name)
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .fill(device.online ? SyncTokens.teal : SyncTokens.slateMuted)
+                        .frame(width: SyncTokens.space2, height: SyncTokens.space2)
+                    Text(device.name).font(SyncFont.body().weight(.semibold))
                 }
                 Text(platformLabel(device.platform) + (device.isCurrent ? " · This device" : ""))
-                    .font(.system(size: 13, design: .rounded))
+                    .font(SyncFont.caption())
                     .foregroundStyle(AppSurfaces.onSurfaceVariant(colorScheme))
                 Text(device.lastSeenAt.map { relativeTime($0) } ?? "Never seen")
-                    .font(.system(size: 13, design: .rounded))
+                    .font(SyncFont.caption())
                     .foregroundStyle(AppSurfaces.onSurfaceVariant(colorScheme))
-
-                if showActions {
-                    HStack(spacing: SyncTokens.space2) {
-                        Button("Rename") {
-                            renameTarget = device
-                            renameValue = device.name
-                        }
-                        .buttonStyle(.bordered)
-                        if showTrust {
-                            Button("Trust") {
-                                Task {
-                                    guard let token = appState.accessToken else { return }
-                                    try? await DeviceAPI.trustDevice(
-                                        serverURL: appState.serverURL,
-                                        accessToken: token,
-                                        id: device.id
-                                    )
-                                    await load()
-                                }
+                HStack(spacing: SyncTokens.space2) {
+                    if showTrust {
+                        GhostButton(title: "Trust") {
+                            Task {
+                                guard let token = appState.accessToken else { return }
+                                try? await DeviceAPI.trustDevice(serverURL: appState.serverURL, accessToken: token, id: device.id)
+                                await load()
                             }
-                            .buttonStyle(.bordered)
-                        }
-                        if showRemove {
-                            Button("Remove") {
-                                Task {
-                                    guard let token = appState.accessToken else { return }
-                                    try? await DeviceAPI.revokeDevice(
-                                        serverURL: appState.serverURL,
-                                        accessToken: token,
-                                        id: device.id
-                                    )
-                                    await load()
-                                }
-                            }
-                            .buttonStyle(.bordered)
                         }
                     }
+                    if showRemove {
+                        GhostButton(title: "Remove") { removeTarget = device }
+                    }
                 }
-            }
         }
     }
 

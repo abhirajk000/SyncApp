@@ -1,0 +1,37 @@
+{
+  "description": "Maps canonical shared/theme tokens to per-platform implementation files",
+  "canonical": {
+    "tokens": "shared/theme/tokens.json",
+    "animations": "shared/theme/animations.json",
+    "designSystem": "shared/design-system.md"
+  },
+  "platforms": {
+    "web": {
+      "tokens": "shared/theme/web/tokens.css",
+      "animations": "shared/theme/web/animations.css",
+      "components": "clients/web/src/components/",
+      "styles": "clients/web/src/design/components.css",
+      "entry": "clients/web/src/index.css"
+    },
+    "android": {
+      "tokens": "clients/android/app/src/main/java/com/syncbridge/android/ui/theme/DesignTokens.kt",
+      "typography": "clients/android/app/src/main/java/com/syncbridge/android/ui/theme/Type.kt",
+      "components": "clients/android/app/src/main/java/com/syncbridge/android/ui/components/",
+      "font": "clients/android/app/src/main/assets/fonts/Outfit-Variable.ttf"
+    },
+    "ios": {
+      "tokens": "clients/ios/DesignSystem.swift",
+      "typography": "clients/ios/SyncFont.swift",
+      "components": "clients/ios/AppComponents.swift",
+      "sharedCards": "clients/ios/SharedCards.swift",
+      "font": "clients/ios/Fonts/Outfit-Variable.ttf"
+    },
+    "macos": {
+      "tokens": "clients/macos/SyncBridgeMac/Design/DesignSystem.swift",
+      "typography": "clients/macos/SyncBridgeMac/Design/SyncFont.swift",
+      "components": "clients/macos/SyncBridgeMac/Design/DesignSystem.swift",
+      "sharedCards": "clients/macos/SyncBridgeMac/Design/SharedCards.swift",
+      "font": "clients/macos/SyncBridgeMac/Resources/Fonts/Outfit-Variable.ttf"
+    }
+  }
+}

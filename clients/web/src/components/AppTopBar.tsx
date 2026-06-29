@@ -24,8 +24,8 @@ export function AppTopBar({ connected, refreshing, onRefresh }: Props) {
 
   const showSun = theme === "dark";
 
-  return (
-    <header className="ds-topbar">
+    return (
+    <header className="sb-topbar ds-topbar">
       <AppBrand size="sm" />
       <div className="ds-topbar-actions">
         {connected !== undefined && <ConnectionStatusPopover connected={connected} />}

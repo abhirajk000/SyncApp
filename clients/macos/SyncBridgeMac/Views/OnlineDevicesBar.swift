@@ -16,20 +16,13 @@ struct OnlineDevicesBar: View {
         if others.isEmpty {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: DS.Space.sm) {
-                Text("ONLINE DEVICES")
-                    .font(DS.Font.label())
-                    .foregroundStyle(.secondary)
-                    .tracking(0.8)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: DS.Space.sm) {
-                        ForEach(others) { device in
-                            deviceChip(device)
-                        }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DS.Space.sm) {
+                    ForEach(others) { device in
+                        deviceChip(device)
                     }
-                    .padding(.horizontal, 1)
                 }
+                .padding(.horizontal, 1)
             }
         }
     }

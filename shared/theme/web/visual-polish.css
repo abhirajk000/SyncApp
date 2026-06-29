@@ -1,0 +1,212 @@
+/* Phase 4 — Visual polish: depth, motion, atmosphere */
+
+/* ── Press & hover primitives ───────────────────────────────── */
+.sb-pressable {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-liquid),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.sb-pressable:hover:not(:disabled) {
+  transform: translateY(1px);
+}
+.sb-pressable:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+.sb-hover-lift {
+  transition:
+    transform var(--duration-normal) var(--ease-liquid),
+    box-shadow var(--duration-normal) var(--ease-liquid);
+}
+.sb-hover-lift:hover {
+  transform: translateY(var(--float-lift));
+  box-shadow: var(--shadow-floating);
+}
+
+/* ── Depth tiers ────────────────────────────────────────────── */
+.sb-depth-1 {
+  box-shadow: var(--shadow-small), var(--shadow-liquid);
+}
+.sb-depth-2 {
+  box-shadow: var(--shadow-medium), var(--shadow-liquid);
+}
+.sb-depth-3 {
+  box-shadow: var(--shadow-floating);
+}
+
+/* ── Floating cards ─────────────────────────────────────────── */
+.ds-card--floating,
+.sb-float-card {
+  box-shadow: var(--shadow-liquid);
+  transform: translateY(-1px);
+}
+.ds-card--floating:hover,
+.sb-float-card.sb-hover-lift:hover {
+  box-shadow: var(--shadow-floating);
+  transform: translateY(calc(var(--float-lift) - 1px));
+}
+
+/* ── Shell background orbs (when not using .ds-app) ─────────── */
+.sb-shell {
+  background: var(--gradient-bg);
+  background-attachment: fixed;
+}
+.sb-shell::before,
+.sb-shell::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(var(--blur-liquid));
+  pointer-events: none;
+  z-index: 0;
+  animation: sb-liquid-float 24s ease-in-out infinite;
+}
+.sb-shell::before {
+  width: min(480px, 88vw);
+  height: min(480px, 88vw);
+  top: -10%;
+  left: -6%;
+  background: radial-gradient(circle, var(--color-primary-glow) 0%, transparent 68%);
+}
+.sb-shell::after {
+  width: min(400px, 76vw);
+  height: min(400px, 76vw);
+  bottom: 6%;
+  right: -5%;
+  background: radial-gradient(circle, rgba(79, 70, 229, 0.16) 0%, transparent 70%);
+  animation-delay: -12s;
+  animation-duration: 28s;
+}
+.sb-shell__main {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Button press polish ────────────────────────────────────── */
+.ds-btn:not(:disabled) {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-liquid),
+    background var(--duration-fast) var(--ease-out);
+}
+.ds-btn:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+
+/* ── List stagger enter ─────────────────────────────────────── */
+.sb-stagger > * {
+  animation: sb-slide-up var(--duration-normal) var(--ease-out) both;
+}
+.sb-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.sb-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.sb-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.sb-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.sb-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.sb-stagger > *:nth-child(6) { animation-delay: 200ms; }
+.sb-stagger > *:nth-child(7) { animation-delay: 240ms; }
+.sb-stagger > *:nth-child(8) { animation-delay: 280ms; }
+
+/* ── Image placeholders ─────────────────────────────────────── */
+.ds-img-placeholder,
+.ds-thumb-placeholder {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    var(--color-bg-subtle) 0%,
+    var(--color-surface-elevated) 45%,
+    var(--color-bg-subtle) 100%
+  );
+  background-size: 200% 200%;
+  animation: ds-polish-shimmer 1.6s var(--ease-in-out) infinite;
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+.ds-img-placeholder::after,
+.ds-thumb-placeholder::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 60%
+  );
+  animation: ds-polish-sheen 2.2s ease-in-out infinite;
+}
+@keyframes ds-polish-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes ds-polish-sheen {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── Premium empty state illustrations ──────────────────────── */
+.ds-empty {
+  position: relative;
+  overflow: hidden;
+}
+.ds-empty::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto;
+  height: 60%;
+  background: radial-gradient(ellipse, var(--color-primary-glow) 0%, transparent 70%);
+  pointer-events: none;
+  opacity: 0.5;
+}
+.ds-empty-illustration {
+  width: 5.5rem;
+  height: 5.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-card);
+  background: var(--gradient-hero);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glow);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  color: var(--color-primary);
+  animation: sb-scale-in var(--duration-slow) var(--ease-liquid) both;
+}
+.ds-empty-illustration svg {
+  width: 2.75rem;
+  height: 2.75rem;
+  filter: drop-shadow(0 4px 12px var(--color-primary-glow));
+}
+
+/* ── Device / clipboard card polish ─────────────────────────── */
+button.ds-device-card {
+  box-shadow: var(--shadow-liquid);
+}
+button.ds-device-card:active {
+  transform: scale(var(--press-scale));
+}
+.ds-clipboard-card {
+  box-shadow: var(--shadow-liquid);
+}
+
+/* ── Glass edge highlight ───────────────────────────────────── */
+.ds-glass-edge {
+  box-shadow: var(--shadow-liquid), inset 0 1px 0 var(--glass-highlight);
+}
+
+/* ── Reduced motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .sb-shell::before,
+  .sb-shell::after,
+  .ds-app::before,
+  .ds-app::after,
+  .ds-img-placeholder,
+  .ds-thumb-placeholder,
+  .sb-stagger > * {
+    animation: none !important;
+  }
+  .sb-pressable:active:not(:disabled),
+  .ds-btn:active:not(:disabled) {
+    transform: none;
+  }
+}

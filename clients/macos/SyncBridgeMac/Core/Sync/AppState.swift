@@ -112,16 +112,19 @@ final class AppState: ObservableObject {
     // ── Startup / shutdown ────────────────────────────────────────────────────
 
     func onAppear() {
-        Task { await restoreOrPromptPIN() }
+        Task { await restoreSession() }
     }
 
-    /// If the device is still trusted, start services; otherwise show the PIN screen.
-    func restoreOrPromptPIN() async {
-        guard KeychainService.shared.isAuthenticated else { return }
+    /// Restore trust or silently re-unlock — PIN UI is web-only.
+    func restoreSession() async {
+        if !KeychainService.shared.isAuthenticated {
+            await silentUnlock()
+            return
+        }
         do {
             let status = try await authService.checkStatus()
             if status.needsPin {
-                authState = .loggedOut
+                await silentUnlock()
                 return
             }
             if case .loggedIn = authState {
@@ -131,7 +134,22 @@ final class AppState: ObservableObject {
                 await presentLatestClipboardPopup()
             }
         } catch {
+            await silentUnlock()
+        }
+    }
+
+    private func silentUnlock() async {
+        authState = .loggingIn
+        do {
+            let resp = try await authService.silentUnlock()
+            authState = .loggedIn(userId: resp.userId, deviceId: resp.deviceId)
+            latestPopupShownThisSession = false
+            startServices()
+            await refreshAll()
+            await presentLatestClipboardPopup()
+        } catch {
             authState = .loggedOut
+            errorMessage = errorDescription(error)
         }
     }
 
@@ -161,18 +179,7 @@ final class AppState: ObservableObject {
     // ── Auth actions ──────────────────────────────────────────────────────────
 
     func unlock(pin: String) async {
-        authState = .loggingIn
-        do {
-            let resp = try await authService.unlock(pin: pin)
-            authState = .loggedIn(userId: resp.userId, deviceId: resp.deviceId)
-            latestPopupShownThisSession = false
-            startServices()
-            await refreshAll()
-            await presentLatestClipboardPopup()
-        } catch {
-            authState = .loggedOut
-            errorMessage = errorDescription(error)
-        }
+        await silentUnlock()
     }
 
     func logout() async {
@@ -413,7 +420,7 @@ final class AppState: ObservableObject {
     private func handleAuthError(_ error: Error) -> Bool {
         if let apiErr = error as? APIError, apiErr.error == "session expired" {
             stopServices()
-            authState = .loggedOut
+            Task { await silentUnlock() }
             return true
         }
         return false

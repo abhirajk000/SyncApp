@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileEntry, deleteFileEntry, fetchFiles, getAccessToken, pinFile } from "../api";
-import { AppButton, AppEmptyState, AppSection, AppSkeleton } from "../components";
+import { AppButton, AppEmptyState, AppSection, AppSkeleton, AppTabs } from "../components";
 import { FileGridCard } from "../components/FileGridCard";
 import { FileRowActions } from "../components/FileRowActions";
 import { ItemDeleteButton } from "../components/ItemDeleteButton";
-import { IconFolder } from "../components/Icons";
 import { formatBytes, relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
 import { TransferBadge } from "../components/TransferBadge";
@@ -72,19 +71,23 @@ export function FilesPage() {
   if (loading && files.length === 0) return <AppSkeleton rows={5} />;
 
   return (
-    <div className="ds-content-narrow">
-      <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-        <AppButton variant={tab === "temporary" ? "primary" : "ghost"} size="sm" onClick={() => setTab("temporary")}>
-          Temporary
-        </AppButton>
-        <AppButton variant={tab === "pinned" ? "primary" : "ghost"} size="sm" onClick={() => setTab("pinned")}>
-          Pinned
-        </AppButton>
+    <div className="sb-page-stack">
+      <div>
+        <h1 className="ds-page-title">Files</h1>
+        <p className="ds-page-lead">Temporary transfers and pinned files from your devices.</p>
       </div>
-      {error && <p className="ds-error" style={{ marginBottom: "var(--space-4)" }}>{error}</p>}
+      <AppTabs
+        tabs={[
+          { id: "temporary", label: "Temporary" },
+          { id: "pinned", label: "Pinned" },
+        ]}
+        active={tab}
+        onChange={(id) => setTab(id as "temporary" | "pinned")}
+      />
+      {error && <p className="ds-error ds-error--spaced">{error}</p>}
       {filtered.length === 0 ? (
         <AppEmptyState
-          icon={<IconFolder size={24} />}
+          illustration="files"
           title={`No ${tab} files`}
           description="Transfer files from a connected device to see them here."
         />
@@ -98,10 +101,10 @@ export function FilesPage() {
         </AppSection>
       ) : (
         <AppSection title="Pinned files">
-          <ul className="ds-list">
+          <ul className="sb-oneui-group">
             {filtered.map((file) => (
-              <li key={file.id} className="ds-list-item">
-                <div className="ds-list-body">
+              <li key={file.id} className="sb-oneui-group__item">
+                <div className="sb-oneui-group__body">
                   <span className="ds-list-primary">{file.name}</span>
                   <span className="ds-list-meta">
                     {formatBytes(file.total_size)} · {file.status} · {relativeTime(file.created_at)}

@@ -7,6 +7,7 @@ import UIKit
 struct SyncBridgeIOSApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var wsClient = WSClient()
+    @StateObject private var localSendManager = LocalSendManager()
     @Environment(\.scenePhase) private var scenePhase
     @State private var backgroundDisconnectTask: UIBackgroundTaskIdentifier = .invalid
 
@@ -17,8 +18,9 @@ struct SyncBridgeIOSApp: App {
                     MainShell()
                         .environmentObject(appState)
                         .environmentObject(wsClient)
+                        .environmentObject(localSendManager)
                 } else {
-                    LoginView()
+                    ConnectingView()
                         .environmentObject(appState)
                 }
 
@@ -44,26 +46,38 @@ struct SyncBridgeIOSApp: App {
                 }
             }
             .onChange(of: scenePhase) { phase in
-                if phase == .active, appState.isAuthenticated {
-                    appState.startClipboardMonitor()
-                    Task {
-                        await appState.syncForegroundClipboard()
-                        if appState.clipboardPastePending {
-                            try? await Task.sleep(nanoseconds: 400_000_000)
+                switch phase {
+                case .active:
+                    localSendManager.start()
+                    if appState.isAuthenticated {
+                        appState.startClipboardMonitor()
+                        Task {
                             await appState.syncForegroundClipboard()
+                            if appState.clipboardPastePending {
+                                try? await Task.sleep(nanoseconds: 400_000_000)
+                                await appState.syncForegroundClipboard()
+                            }
+                            await appState.catchUpRemoteClipboard()
+                            await appState.presentLatestClipboardPopupIfNeeded()
+                            await appState.refreshClipboardHistory()
+                            await appState.refreshFiles()
                         }
-                        await appState.catchUpRemoteClipboard()
-                        await appState.presentLatestClipboardPopupIfNeeded()
-                        await appState.refreshClipboardHistory()
-                        await appState.refreshFiles()
+                        connectWS()
                     }
-                    connectWS()
-                } else if phase == .background {
-                    appState.stopClipboardMonitor()
-                    scheduleBackgroundDisconnect()
+                case .background, .inactive:
+                    localSendManager.stop()
+                    if appState.isAuthenticated {
+                        if phase == .background {
+                            appState.stopClipboardMonitor()
+                            scheduleBackgroundDisconnect()
+                        }
+                    }
+                default:
+                    break
                 }
             }
             .onAppear {
+                localSendManager.start()
                 if appState.isAuthenticated {
                     Task {
                         await appState.catchUpRemoteClipboard()

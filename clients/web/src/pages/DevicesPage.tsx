@@ -5,7 +5,7 @@ import {
   renameDevice,
   revokeDevice,
 } from "../api";
-import { AppButton, AppCard, AppInput, AppModal, AppSection, AppSkeleton } from "../components";
+import { AppButton, AppEmptyState, AppInput, AppModal, AppSection, AppSkeleton } from "../components";
 import { PairQrPanel } from "../components/PairQrPanel";
 import { DeviceTypeIcon } from "../components/DeviceTypeIcon";
 import { ArrowLeft } from "lucide-react";
@@ -26,6 +26,7 @@ export function DevicesPage({ onBack }: Props) {
   const [devices, setDevices] = useState<DeviceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [renameTarget, setRenameTarget] = useState<DeviceEntry | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<DeviceEntry | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -65,10 +66,10 @@ export function DevicesPage({ onBack }: Props) {
   }
 
   async function remove(device: DeviceEntry) {
-    if (!window.confirm(`Remove "${device.name}" from your account?`)) return;
     try {
       await revokeDevice(device.id);
       setDevices((prev) => prev.filter((d) => d.id !== device.id));
+      setRemoveTarget(null);
       toast("Device removed", "success");
     } catch {
       toast("Could not remove device", "danger");
@@ -78,7 +79,7 @@ export function DevicesPage({ onBack }: Props) {
   if (loading) return <AppSkeleton rows={6} />;
 
   return (
-    <div className="ds-content-narrow ds-devices-page">
+    <div className="sb-page-stack ds-devices-page">
       <div className="ds-devices-page__head">
         <AppButton variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft size={18} strokeWidth={2} />
@@ -86,10 +87,12 @@ export function DevicesPage({ onBack }: Props) {
         </AppButton>
       </div>
 
-      <h2 className="ds-title" style={{ marginBottom: "var(--space-2)" }}>Devices</h2>
-      <p className="ds-subtitle" style={{ marginBottom: "var(--space-6)" }}>
-        Pair new devices and manage devices on your account.
-      </p>
+      <div>
+        <h1 className="ds-page-title">Devices</h1>
+        <p className="ds-page-lead">
+          Pair new devices and manage devices on your account.
+        </p>
+      </div>
 
       <AppSection title="Pair a device">
         <PairQrPanel />
@@ -109,25 +112,28 @@ export function DevicesPage({ onBack }: Props) {
 
       <AppSection title="Other devices">
         {others.length === 0 ? (
-          <AppCard>
-            <p className="ds-card-desc" style={{ margin: 0 }}>
-              No other devices yet. Sign in on your phone, Mac, or tablet to see them here.
-            </p>
-          </AppCard>
+          <AppEmptyState
+            illustration="devices"
+            title="No other devices"
+            description="Sign in on your phone, Mac, or tablet to see them here."
+          />
         ) : (
-          <div className="ds-devices-list">
+          <ul className="sb-oneui-group">
             {others.map((device) => (
-              <DeviceCard
-                key={device.id}
-                device={device}
-                onRename={() => {
-                  setRenameTarget(device);
-                  setRenameValue(device.name);
-                }}
-                onRemove={() => void remove(device)}
-              />
+              <li key={device.id} className="sb-oneui-group__item">
+                <div className="sb-oneui-group__body">
+                  <DeviceCard
+                    device={device}
+                    onRename={() => {
+                      setRenameTarget(device);
+                      setRenameValue(device.name);
+                    }}
+                    onRemove={() => setRemoveTarget(device)}
+                  />
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </AppSection>
 
@@ -143,11 +149,29 @@ export function DevicesPage({ onBack }: Props) {
           autoFocus
           maxLength={64}
         />
-        <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-4)" }}>
+        <div className="ds-modal-actions">
           <AppButton block onClick={() => void saveRename()} disabled={saving || !renameValue.trim()}>
             Save
           </AppButton>
           <AppButton variant="ghost" block onClick={() => setRenameTarget(null)}>
+            Cancel
+          </AppButton>
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={!!removeTarget}
+        title="Remove device"
+        onClose={() => setRemoveTarget(null)}
+      >
+        <p className="ds-subtitle">
+          Remove &ldquo;{removeTarget?.name}&rdquo; from your account? It will need to sign in again.
+        </p>
+        <div className="ds-modal-actions">
+          <AppButton variant="danger" block onClick={() => removeTarget && void remove(removeTarget)}>
+            Remove
+          </AppButton>
+          <AppButton variant="ghost" block onClick={() => setRemoveTarget(null)}>
             Cancel
           </AppButton>
         </div>
@@ -166,7 +190,7 @@ function DeviceCard({
   onRemove?: () => void;
 }) {
   return (
-    <AppCard className="ds-device-card">
+    <div className="ds-device-card">
       <div className="ds-device-card__main">
         <span className="ds-device-card__icon" aria-hidden>
           <DeviceTypeIcon platform={device.platform} size={22} />
@@ -194,6 +218,6 @@ function DeviceCard({
           </AppButton>
         )}
       </div>
-    </AppCard>
+    </div>
   );
 }

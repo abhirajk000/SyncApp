@@ -33,11 +33,14 @@ struct ClipboardImageThumb: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
         .task(id: entry.id) { await loadImage() }
+        .onDisappear { image = nil }
     }
 
     private func loadImage() async {
+        // Prefer embedded data only when already small (inline preview).
         if let data = ClipboardImageCodec.decodeImageData(from: entry),
-           let img = UIImage(data: data) {
+           data.count <= 256 * 1024,
+           let img = ImageThumbDecode.decode(data) {
             image = img
             return
         }
@@ -46,17 +49,7 @@ struct ClipboardImageThumb: View {
             serverURL: serverURL,
             accessToken: token,
             entryId: entry.id
-        ), let img = UIImage(data: data) {
-            image = img
-            return
-        }
-        if let full = try? await ClipboardAPI.fetchEntry(
-            serverURL: serverURL,
-            accessToken: token,
-            id: entry.id
-        ),
-           let data = ClipboardImageCodec.decodeImageData(from: full),
-           let img = UIImage(data: data) {
+        ), let img = ImageThumbDecode.decode(data) {
             image = img
         }
     }

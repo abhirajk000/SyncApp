@@ -71,6 +71,15 @@ class ApiClient(private val prefs: SharedPreferences) {
             result
         }
 
+    suspend fun fetchAuthStatus(): AuthStatus = withContext(Dispatchers.IO) {
+        val json = get("/api/v1/auth/status")
+        AuthStatus(
+            deviceId = json.getString("device_id"),
+            trustedUntil = json.optString("trusted_until", null),
+            needsPin = json.getBoolean("needs_pin"),
+        )
+    }
+
     suspend fun syncClipboard(content: String, contentType: String = "text/plain"): ClipboardEntry =
         withContext(Dispatchers.IO) {
             val body = JSONObject().apply {

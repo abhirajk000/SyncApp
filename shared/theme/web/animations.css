@@ -1,0 +1,69 @@
+/* SyncBridge animation library — canonical (shared/theme) */
+
+@keyframes sb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sb-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes sb-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sb-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sb-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sb-progress-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes sb-success-pop {
+  from { transform: scale(0.85); }
+  to { transform: scale(1); }
+}
+
+@keyframes sb-liquid-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 15px) scale(0.95); }
+}
+
+/* Utility classes */
+.sb-animate-fade-in {
+  animation: sb-fade-in var(--duration-normal) var(--ease-out) both;
+}
+.sb-animate-slide-up {
+  animation: sb-slide-up var(--duration-normal) var(--ease-out) both;
+}
+.sb-animate-scale-in {
+  animation: sb-scale-in var(--duration-normal) var(--ease-liquid) both;
+}
+.sb-animate-modal {
+  animation:
+    sb-fade-in var(--duration-slow) var(--ease-liquid) both,
+    sb-scale-in var(--duration-slow) var(--ease-liquid) both;
+}
+.sb-animate-progress-pulse {
+  animation: sb-progress-pulse var(--duration-slower) var(--ease-in-out) infinite;
+}
+.sb-transition {
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-out);
+}
+.sb-transition-fast {
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-out);
+}

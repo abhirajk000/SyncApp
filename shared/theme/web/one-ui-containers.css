@@ -1,0 +1,243 @@
+/* Samsung One UI — rounded container philosophy (SyncBridge branding) */
+
+:root {
+  --radius-container-inner: 20px;
+  --radius-container-sm: 24px;
+  --radius-container: 28px;
+  --radius-container-lg: 32px;
+  --oneui-container-padding: var(--space-6);
+  --oneui-container-padding-lg: var(--space-8);
+  --oneui-container-gap: var(--space-4);
+  --oneui-section-gap: var(--space-6);
+}
+
+/* ── Base container ─────────────────────────────────────────── */
+.sb-oneui-container,
+.sb-oneui-container--default {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-small);
+  padding: var(--oneui-container-padding);
+}
+
+.sb-oneui-container--lg {
+  border-radius: var(--radius-container-lg);
+  padding: var(--oneui-container-padding-lg);
+  box-shadow: var(--shadow-medium);
+}
+
+.sb-oneui-container--sm {
+  border-radius: var(--radius-container-sm);
+  padding: var(--space-4) var(--space-5);
+}
+
+.sb-oneui-container--glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-glass)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(1.25);
+  border-color: var(--glass-border);
+  box-shadow: var(--shadow-small);
+}
+
+/* ── Grouped items inside one container ─────────────────────── */
+.sb-oneui-group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sb-oneui-group__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  min-height: 3.25rem;
+}
+
+.sb-oneui-group__item + .sb-oneui-group__item {
+  border-top: 1px solid var(--color-border);
+}
+
+.sb-oneui-group__body {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+/* Section: title outside, one container inside */
+.sb-oneui-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Apply One UI to design-system primitives ───────────────── */
+
+.ds-card {
+  border-radius: var(--radius-container-lg) !important;
+  padding: var(--oneui-container-padding-lg) !important;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-small);
+}
+
+.ds-card--hero {
+  background: var(--gradient-hero);
+}
+
+.ds-empty {
+  border-radius: var(--radius-container-lg);
+  padding: var(--oneui-container-padding-lg) var(--oneui-container-padding);
+}
+
+.ds-empty-icon {
+  border-radius: var(--radius-container-sm);
+}
+
+.ds-input,
+.ds-textarea,
+.ds-search__input {
+  border-radius: var(--radius-container-sm) !important;
+  min-height: 3rem;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-small);
+}
+
+.ds-search {
+  border-radius: var(--radius-container-sm);
+  overflow: hidden;
+}
+
+.ds-modal {
+  border-radius: var(--radius-container-lg) !important;
+  padding: var(--oneui-container-padding-lg) !important;
+}
+
+.ds-bottom-sheet {
+  border-radius: var(--radius-container-lg) var(--radius-container-lg) 0 0 !important;
+  padding: var(--space-5) var(--oneui-container-padding-lg)
+    calc(var(--oneui-container-padding-lg) + env(safe-area-inset-bottom)) !important;
+}
+
+.ds-clipboard-card {
+  border-radius: var(--radius-container) !important;
+  padding: var(--oneui-container-padding);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-small);
+}
+
+.ds-list:not(.sb-oneui-group) {
+  gap: var(--oneui-container-gap);
+}
+
+.ds-list-item {
+  border-radius: var(--radius-container) !important;
+  padding: var(--space-4) var(--space-5) !important;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-small);
+}
+
+.sb-oneui-container .ds-list-item,
+.sb-oneui-group .ds-list-item {
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent;
+}
+
+.ds-lan-device-card,
+.ds-device-card {
+  border-radius: var(--radius-container) !important;
+}
+
+.ds-file-grid-card,
+.ds-transfer-card {
+  border-radius: var(--radius-container) !important;
+}
+
+.ds-tabs {
+  border-radius: var(--radius-container-sm);
+  padding: var(--space-1);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-small);
+}
+
+.ds-tab {
+  border-radius: calc(var(--radius-container-sm) - 4px);
+}
+
+.ds-settings-toggle {
+  padding: var(--space-4) 0;
+}
+
+.ds-settings-toggle + .ds-settings-toggle {
+  border-top: 1px solid var(--color-border);
+}
+
+.ds-settings-link {
+  border-radius: var(--radius-container-sm);
+}
+
+/* Toolbar / filter chips sit in a soft container on timeline */
+.ds-clipboard-timeline__toolbar {
+  padding: var(--space-4);
+  margin: 0 calc(-1 * var(--space-2));
+  border-radius: var(--radius-container-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-small);
+}
+
+.ds-clipboard-timeline__filters {
+  padding-top: var(--space-2);
+}
+
+.sb-oneui-container .ds-clipboard-card,
+.sb-oneui-group .ds-clipboard-card {
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.sb-oneui-container .ds-clipboard-card:hover,
+.sb-oneui-group .ds-clipboard-card:hover {
+  transform: none;
+}
+
+.sb-oneui-container .ds-clipboard-card + .ds-clipboard-card,
+.sb-oneui-group__item + .sb-oneui-group__item {
+  border-top: 1px solid var(--color-border);
+}
+
+.sb-oneui-group__item--clipboard {
+  display: block;
+  padding: 0;
+  min-height: 0;
+}
+
+.sb-oneui-group__item--clipboard .sb-oneui-group__body {
+  width: 100%;
+}
+
+/* Page background — simple so containers pop */
+.sb-shell,
+.ds-app {
+  background: var(--color-bg);
+}
+
+.sb-page-stack {
+  gap: var(--oneui-section-gap);
+}
+
+.sb-section {
+  gap: var(--space-3);
+}

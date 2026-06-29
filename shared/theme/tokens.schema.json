@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SyncBridge Design Tokens",
+  "type": "object",
+  "required": ["version", "typography", "colors", "spacing", "radius", "shadow", "icon", "animation", "layout"],
+  "properties": {
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "typography": {
+      "type": "object",
+      "required": ["fontFamily", "weights", "sizes", "roles"],
+      "properties": {
+        "fontFamily": { "const": "Outfit" },
+        "weights": { "type": "object" },
+        "sizes": { "type": "object" },
+        "lineHeights": { "type": "object" },
+        "letterSpacing": { "type": "object" },
+        "roles": { "type": "object" }
+      }
+    },
+    "colors": {
+      "type": "object",
+      "required": ["light", "dark"],
+      "properties": {
+        "light": { "type": "object" },
+        "dark": { "type": "object" },
+        "semantic": { "type": "object" }
+      }
+    },
+    "spacing": { "type": "object", "additionalProperties": { "type": "number" } },
+    "radius": { "type": "object", "additionalProperties": { "type": "number" } },
+    "shadow": { "type": "object", "additionalProperties": { "type": "string" } },
+    "icon": { "type": "object", "additionalProperties": { "type": "number" } },
+    "animation": { "type": "object" },
+    "layout": { "type": "object" },
+    "zIndex": { "type": "object" }
+  }
+}

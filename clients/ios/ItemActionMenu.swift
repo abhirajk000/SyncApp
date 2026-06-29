@@ -41,7 +41,27 @@ struct ItemActionMenu: View {
     }
 }
 
-/// Clipboard row actions on home — Copy, Pin, Delete (matches macOS / Android).
+/// Web ds-item-delete-btn — circular delete on home rows.
+struct ItemDeleteButton: View {
+    var overlay: Bool = false
+    var label: String = "Delete"
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(overlay ? Color.white : SyncTokens.danger)
+                .frame(width: 28, height: 28)
+                .background(overlay ? Color.black.opacity(0.55) : SyncTokens.danger.opacity(0.1))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
+/// Clipboard row actions on pinned/history screens — Copy, Pin, Delete.
 struct ClipboardItemActionMenu: View {
     @EnvironmentObject var appState: AppState
     let entry: ClipboardEntry

@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // ── Public ────────────────────────────────────────────────────────────────
 
     let appState = AppState()
+    let localSendManager = LocalSendManager()
 
     // ── Private ───────────────────────────────────────────────────────────────
 
@@ -48,12 +49,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.appState.openMainWindowHandler = { [weak self] in
                 self?.openMainWindow()
             }
+            self.localSendManager.start()
             self.appState.onAppear()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        localSendManager.stop()
         appState.stopServices()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        localSendManager.start()
+        appState.networkManager.setUiActive(true)
+    }
+
+    func applicationDidResignActive(_ notification: Notification) {
+        localSendManager.stop()
+        appState.networkManager.setUiActive(false)
     }
 
     // MARK: – Status item (menu bar icon)
@@ -94,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(
             rootView: MenuBarView()
                 .environmentObject(appState)
+                .environmentObject(localSendManager)
         )
         self.popover = popover
     }
@@ -149,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hosting = NSHostingController(
             rootView: MenuBarView()
                 .environmentObject(appState)
+                .environmentObject(localSendManager)
                 .appPresentationMode(.window)
         )
         let window = NSWindow(

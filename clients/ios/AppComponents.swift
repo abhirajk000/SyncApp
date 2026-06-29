@@ -7,21 +7,21 @@ import SwiftUI
 struct AppCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     var accentBorder: Color? = nil
+    var hero: Bool = false
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: SyncTokens.space4) {
             content
         }
-        .padding(SyncTokens.space5)
+        .padding(SyncTokens.space6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppSurfaces.card(colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusLg))
+        .floatingCard(hero: hero || accentBorder != nil)
+        .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusContainerLg))
         .overlay(
-            RoundedRectangle(cornerRadius: SyncTokens.radiusLg)
-                .stroke(accentBorder ?? AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+            RoundedRectangle(cornerRadius: SyncTokens.radiusContainerLg)
+                .stroke(accentBorder ?? Color.clear, lineWidth: accentBorder == nil ? 0 : 1)
         )
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.25 : 0.04), radius: 2, y: 1)
     }
 }
 
@@ -49,11 +49,52 @@ struct GlassListRow<Content: View>: View {
         .padding(.vertical, SyncTokens.space4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppSurfaces.card(colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusLg))
+        .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusContainer))
         .overlay(
-            RoundedRectangle(cornerRadius: SyncTokens.radiusLg)
+            RoundedRectangle(cornerRadius: SyncTokens.radiusContainer)
                 .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
         )
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.28 : 0.05), radius: 6, y: 2)
+    }
+}
+
+/** One UI — multiple rows inside a single large rounded container. */
+struct ContainerGroup<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .padding(.vertical, SyncTokens.space2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .floatingCard()
+        .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusContainerLg))
+        .overlay(
+            RoundedRectangle(cornerRadius: SyncTokens.radiusContainerLg)
+                .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+        )
+    }
+}
+
+struct ContainerGroupItem<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    var showDivider: Bool = true
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+                .padding(.horizontal, SyncTokens.space5)
+                .padding(.vertical, SyncTokens.space4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if showDivider {
+                Divider()
+                    .overlay(AppSurfaces.cardBorder(colorScheme))
+                    .padding(.horizontal, SyncTokens.space5)
+            }
+        }
     }
 }
 
@@ -61,10 +102,34 @@ struct AppSectionTitle: View {
     let title: String
     var body: some View {
         Text(title.uppercased())
-            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .font(SyncFont.label())
             .tracking(1.2)
             .foregroundStyle(SyncTokens.slateMuted)
             .padding(.bottom, SyncTokens.space2)
+    }
+}
+
+/// Web ds-btn--ghost.ds-btn--sm
+struct GhostButton: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(SyncFont.caption())
+                .foregroundStyle(SyncTokens.slateSecondary)
+                .padding(.vertical, SyncTokens.space2)
+                .padding(.horizontal, SyncTokens.space4)
+                .background(AppSurfaces.card(colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusSm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: SyncTokens.radiusSm)
+                        .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -73,7 +138,7 @@ struct AppCardTitle: View {
     let title: String
     var body: some View {
         Text(title)
-            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .font(SyncFont.titleLg())
             .foregroundStyle(AppSurfaces.onSurface(colorScheme))
     }
 }
@@ -84,7 +149,7 @@ struct AppCardDesc: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 14, design: .rounded))
+            .font(SyncFont.bodySm())
             .foregroundStyle(AppSurfaces.onSurfaceVariant(colorScheme))
             .padding(.top, SyncTokens.space1)
             .padding(.bottom, SyncTokens.space3)
@@ -124,7 +189,7 @@ struct SectionHeaderRow: View {
             Spacer()
             if let actionLabel, let onAction {
                 Button(actionLabel, action: onAction)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(SyncFont.body().weight(.semibold))
                     .foregroundStyle(SyncTokens.teal)
             }
         }
@@ -137,7 +202,7 @@ struct IconBadge: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: 14, weight: .semibold))
+            .font(SyncFont.bodySm().weight(.semibold))
             .foregroundStyle(tint)
             .frame(width: 32, height: 32)
             .background(tint.opacity(0.1))
@@ -155,7 +220,7 @@ struct ConnectionChip: View {
             HStack(spacing: 6) {
                 Circle().fill(color).frame(width: 7, height: 7)
                 Text(connected ? "Connected" : "Offline")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(SyncFont.caption())
                     .foregroundStyle(color)
             }
             .padding(.horizontal, 12)
@@ -178,39 +243,146 @@ struct PrimaryButton: View {
         Button(action: action) {
             Group {
                 if loading {
-                    ProgressView().tint(.white)
+                    HStack(spacing: SyncTokens.space2) {
+                        ProgressView().tint(.white)
+                        Text(text)
+                            .font(SyncFont.body().weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
                 } else {
                     Text(text)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(SyncFont.body().weight(.semibold))
                         .foregroundStyle(.white)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(SyncTokens.teal.opacity(enabled && !loading ? 1 : 0.4))
-            .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
+            .frame(height: 56)
+            .background(
+                LinearGradient(
+                    colors: enabled && !loading
+                        ? [SyncTokens.teal, SyncTokens.tealLight]
+                        : [SyncTokens.teal.opacity(0.4), SyncTokens.tealLight.opacity(0.4)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusButton))
+            .shadow(color: SyncTokens.teal.opacity(0.25), radius: 8, y: 4)
         }
         .disabled(!enabled || loading)
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
+    }
+}
+
+struct LoginHero: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: SyncTokens.space4) {
+            Image("AppLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 44)
+                .frame(width: 64, height: 64)
+                .background(
+                    LinearGradient(
+                        colors: [SyncTokens.teal.opacity(0.12), Color.white.opacity(0.5)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusXl))
+                .overlay(
+                    RoundedRectangle(cornerRadius: SyncTokens.radiusXl)
+                        .stroke(Color.white.opacity(0.85), lineWidth: 1)
+                )
+                .shadow(color: SyncTokens.teal.opacity(0.15), radius: 12, y: 6)
+
+            Text("SyncBridge")
+                .font(SyncFont.title2xl())
+                .tracking(-0.3)
+                .foregroundStyle(AppSurfaces.onSurface(colorScheme))
+
+            Text("Enter your PIN to unlock")
+                .font(SyncFont.bodySm())
+                .foregroundStyle(SyncTokens.slateSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, SyncTokens.space3)
+    }
+}
+
+struct LoginPinField: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Binding var text: String
+    var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SyncTokens.space2) {
+            SecureField("PIN", text: $text)
+                .keyboardType(.numberPad)
+                .font(SyncFont.bodySm())
+                .padding(.horizontal, SyncTokens.space4)
+                .padding(.vertical, SyncTokens.space3)
+                .background(AppSurfaces.card(colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusInput))
+                .overlay(
+                    RoundedRectangle(cornerRadius: SyncTokens.radiusInput)
+                        .stroke(error != nil ? SyncTokens.danger : AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+                )
+
+            if let error {
+                Text(error)
+                    .font(.system(size: 13, design: .rounded))
+                    .foregroundStyle(SyncTokens.danger)
+            }
+        }
+    }
+}
+
+struct LoginCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SyncTokens.space5) {
+            content
+        }
+        .padding(.horizontal, SyncTokens.space6)
+        .padding(.vertical, SyncTokens.space8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppSurfaces.card(colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusCard))
+        .overlay(
+            RoundedRectangle(cornerRadius: SyncTokens.radiusCard)
+                .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.55 : 0.18), radius: 24, y: 12)
     }
 }
 
 struct AppEmptyState: View {
-    let icon: String
+    var illustration: EmptyArt = .inbox
     let title: String
     let description: String
+    var actionTitle: String?
+    var action: (() -> Void)?
 
     var body: some View {
-        AppCard {
+        AppCard(hero: true) {
             VStack(spacing: SyncTokens.space4) {
-                IconBadge(systemName: icon)
+                EmptyIllustration(variant: illustration)
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(SyncFont.titleLg())
                     .multilineTextAlignment(.center)
                 Text(description)
-                    .font(.system(size: 14, design: .rounded))
+                    .font(SyncFont.bodySm())
                     .foregroundStyle(SyncTokens.slateSecondary)
                     .multilineTextAlignment(.center)
+                if let actionTitle, let action {
+                    PrimaryButton(text: actionTitle, action: action)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, SyncTokens.space6)
@@ -346,7 +518,7 @@ private struct LatestCardShell<Content: View>: View {
             }
             if empty {
                 Text(emptyMessage)
-                    .font(.system(size: 14, design: .rounded))
+                    .font(SyncFont.bodySm())
                     .foregroundStyle(SyncTokens.slateSecondary)
                     .padding(.top, SyncTokens.space3)
             } else {
@@ -363,7 +535,7 @@ struct EarlierTextRow: View {
     var body: some View {
         GlassListRow(onTap: onCopy) {
             Text(clipboardDisplayText(entry.content, max: 280))
-                .font(.system(size: 14, design: .rounded))
+                .font(SyncFont.bodySm())
                 .lineLimit(3)
             Text(relativeTime(entry.createdAt))
                 .font(.system(size: 12, weight: .medium))
@@ -395,6 +567,147 @@ struct EarlierImageRow: View {
     }
 }
 
+struct ClipboardCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let entry: ClipboardEntry
+    let onCopy: () -> Void
+    let onDelete: () -> Void
+    var serverURL: String? = nil
+    var accessToken: String? = nil
+    var deviceName: String? = nil
+    var transferMode: String? = nil
+    var copied: Bool = false
+    var embeddedInGroup: Bool = false
+    var onPin: (() -> Void)? = nil
+    var onPreview: (() -> Void)? = nil
+
+    private var isImage: Bool { isImageContentType(entry.contentType) }
+    private var large: Bool { !isImage && entry.content.count > 180 }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: SyncTokens.space2) {
+                if deviceName != nil || entry.pinned || transferMode != nil || onPin != nil || onPreview != nil {
+                    HStack {
+                        HStack(spacing: SyncTokens.space2) {
+                            if let deviceName {
+                                PremiumChip(label: deviceName, variant: .neutral)
+                            }
+                            if entry.pinned {
+                                PremiumChip(label: "Pinned", variant: .primary)
+                            }
+                            if let transferMode {
+                                TransferBadge(transferMode: transferMode)
+                            }
+                        }
+                        Spacer()
+                        HStack(spacing: SyncTokens.space1) {
+                            if let onPreview {
+                                GhostButton(title: "Preview", action: onPreview)
+                            }
+                            if let onPin {
+                                GhostButton(title: entry.pinned ? "Unpin" : "Pin", action: onPin)
+                            }
+                        }
+                    }
+                }
+
+                Button(action: onCopy) {
+                    VStack(alignment: .leading, spacing: SyncTokens.space2) {
+                        if isImage, let serverURL, let accessToken {
+                            ClipboardImageThumb(
+                                entry: entry,
+                                serverURL: serverURL,
+                                accessToken: accessToken,
+                                maxHeight: 180
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(maxHeight: 180)
+                            .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusLg))
+                        } else {
+                            Text(clipboardDisplayText(entry.content, max: large ? 480 : 160))
+                                .font(large ? SyncFont.body() : SyncFont.bodySm())
+                                .lineLimit(large ? 8 : 4)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        Text("\(relativeTime(entry.createdAt)) · \(isImage ? "Image" : "Text") · Tap to copy")
+                            .font(SyncFont.caption())
+                            .foregroundStyle(SyncTokens.slateMuted)
+                    }
+                    .padding(embeddedInGroup ? SyncTokens.space5 : SyncTokens.space4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .modifier(ClipboardCardSurfaceModifier(
+                        colorScheme: colorScheme,
+                        embeddedInGroup: embeddedInGroup,
+                        copied: copied,
+                        pinned: entry.pinned
+                    ))
+                }
+                .buttonStyle(PressableButtonStyle())
+            }
+
+            if copied {
+                ZStack {
+                    if !embeddedInGroup {
+                        RoundedRectangle(cornerRadius: SyncTokens.radiusContainer)
+                            .fill(SyncTokens.success.opacity(0.12))
+                    }
+                    Text("✓ Copied")
+                        .font(SyncFont.bodySm().weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, SyncTokens.space4)
+                        .padding(.vertical, SyncTokens.space2)
+                        .background(SyncTokens.success)
+                        .clipShape(Capsule())
+                }
+                .allowsHitTesting(false)
+            }
+
+            ItemDeleteButton(overlay: true, action: onDelete)
+                .padding(SyncTokens.space2)
+        }
+        .if(!embeddedInGroup) { view in
+            view.floatingCard()
+        }
+    }
+}
+
+private struct ClipboardCardSurfaceModifier: ViewModifier {
+    let colorScheme: ColorScheme
+    let embeddedInGroup: Bool
+    let copied: Bool
+    let pinned: Bool
+
+    func body(content: Content) -> some View {
+        if embeddedInGroup {
+            content
+        } else {
+            content
+                .background(AppSurfaces.card(colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusContainer))
+                .overlay(
+                    RoundedRectangle(cornerRadius: SyncTokens.radiusContainer)
+                        .stroke(
+                            copied ? SyncTokens.success : (pinned ? SyncTokens.indigo.opacity(0.35) : AppSurfaces.cardBorder(colorScheme)),
+                            lineWidth: 1
+                        )
+                )
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func `if`<Transform: View>(_ condition: Bool, transform: (Self) -> Transform) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
+    }
+}
+
 struct SegmentedTabs: View {
     @Environment(\.colorScheme) private var colorScheme
     let options: [String]
@@ -408,7 +721,7 @@ struct SegmentedTabs: View {
                     selectedIndex = index
                 } label: {
                     Text(options[index])
-                        .font(.system(size: 14, weight: selected ? .semibold : .regular))
+                        .font(SyncFont.bodySm().weight(selected ? .semibold : .regular))
                         .foregroundStyle(selected ? .white : AppSurfaces.onSurfaceVariant(colorScheme))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)

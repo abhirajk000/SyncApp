@@ -7,6 +7,10 @@
     <key>com.apple.security.network.client</key>
     <true/>
 
+    <!-- Local Send: TCP listener for LAN P2P file transfer -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
     <!-- Launch at login (SMAppService — macOS 13+) -->
     <key>com.apple.smserver.client</key>
     <true/>

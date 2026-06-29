@@ -22,9 +22,9 @@ struct FilesView: View {
 
                 if filtered.isEmpty {
                     AppEmptyState(
-                        icon: "folder",
+                        illustration: .files,
                         title: tabIndex == 1 ? "No pinned files" : "No files yet",
-                        description: "Send files from the Send tab or receive them from other devices."
+                        description: "Receive files via Local Send or from cloud sync on other devices."
                     )
                 } else if tabIndex == 0 {
                     LazyVGrid(

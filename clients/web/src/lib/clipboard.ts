@@ -33,17 +33,37 @@ export async function fetchClipboardThumbnail(entryId: string): Promise<Blob | n
 }
 
 const thumbnailCache = new Map<string, string>();
+const THUMBNAIL_CACHE_MAX = 48;
 
 export function getCachedThumbnailUrl(entryId: string): string | null {
   return thumbnailCache.get(entryId) ?? null;
 }
 
+function evictThumbnailCacheIfNeeded() {
+  while (thumbnailCache.size > THUMBNAIL_CACHE_MAX) {
+    const oldest = thumbnailCache.keys().next().value;
+    if (!oldest) break;
+    const url = thumbnailCache.get(oldest);
+    if (url) URL.revokeObjectURL(url);
+    thumbnailCache.delete(oldest);
+  }
+}
+
 export function cacheThumbnailBlob(entryId: string, blob: Blob): string {
   const existing = thumbnailCache.get(entryId);
-  if (existing) URL.revokeObjectURL(existing);
+  if (existing) return existing;
   const url = URL.createObjectURL(blob);
   thumbnailCache.set(entryId, url);
+  evictThumbnailCacheIfNeeded();
   return url;
+}
+
+/** Release object URLs when leaving a screen — optional memory trim. */
+export function clearThumbnailCache() {
+  for (const url of thumbnailCache.values()) {
+    URL.revokeObjectURL(url);
+  }
+  thumbnailCache.clear();
 }
 
 export async function fileToBase64(file: File): Promise<string> {

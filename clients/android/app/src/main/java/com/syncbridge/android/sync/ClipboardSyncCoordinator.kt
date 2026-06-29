@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import com.syncbridge.android.util.resolveClipboardImageBytes
+import java.security.MessageDigest
 
 /**
  * Shared local clipboard + screenshot upload logic for the foreground service.

@@ -36,6 +36,17 @@
     <key>NSPasteboardUsageDescription</key>
     <string>SyncBridge reads and writes the clipboard to sync content across your devices.</string>
 
+    <!-- Bonjour / Local Send -->
+    <key>ATSApplicationFontsPath</key>
+    <string>Fonts</string>
+
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>SyncBridge discovers nearby devices on your Wi-Fi for Local Send file transfer.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_syncbridge-localsend._tcp</string>
+    </array>
+
     <!-- Network access reason (shown in privacy report) -->
     <key>NSNetworkVolumesUsageDescription</key>
     <string>SyncBridge connects to your SyncBridge server to sync clipboard and files.</string>

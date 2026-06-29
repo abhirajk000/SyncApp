@@ -1,0 +1,202 @@
+/* SyncBridge Design System — canonical CSS tokens (shared/theme) */
+
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap");
+
+:root {
+  /* Typography */
+  --font-family: "Outfit", system-ui, -apple-system, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-display: 2.5rem;
+  --leading-tight: 1.2;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.08em;
+
+  /* Spacing — 8pt grid */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-input: 18px;
+  --radius-button: 20px;
+  --radius-lg: 20px;
+  --radius-card: 28px;
+  --radius-dialog: 32px;
+  --radius-xl: 32px;
+  --radius-container-inner: 20px;
+  --radius-container-sm: 24px;
+  --radius-container: 28px;
+  --radius-container-lg: 32px;
+  --radius-chip: 9999px;
+  --radius-pill: var(--radius-chip);
+  --radius-full: 9999px;
+
+  /* Shadows — four levels */
+  --shadow-small: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-medium: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-large: 0 16px 48px rgba(15, 23, 42, 0.12);
+  --shadow-floating:
+    0 24px 64px -16px rgba(15, 23, 42, 0.18),
+    0 8px 24px -8px rgba(79, 70, 229, 0.15);
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: var(--shadow-small);
+  --shadow-md: var(--shadow-medium);
+  --shadow-lg: var(--shadow-large);
+  --shadow-float: var(--shadow-floating);
+  --shadow-liquid:
+    0 4px 24px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --shadow-glow:
+    0 8px 32px rgba(13, 148, 136, 0.16),
+    0 2px 12px rgba(79, 70, 229, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.72);
+  --color-primary-glow: rgba(13, 148, 136, 0.32);
+  --color-danger-subtle: rgba(220, 38, 38, 0.1);
+  --color-success-subtle: rgba(5, 150, 105, 0.1);
+  --space-16: 4rem;
+  --press-scale: 0.97;
+  --float-lift: -3px;
+  --blur-glass: 24px;
+  --blur-liquid: 40px;
+
+  /* Icons */
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-base: 24px;
+  --icon-lg: 28px;
+  --icon-xl: 32px;
+  --icon-2xl: 40px;
+
+  /* Animation */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
+  --duration-slower: 500ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-liquid: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+
+  /* Colors — light */
+  --color-bg: #f4f7fb;
+  --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #eef2f7;
+  --color-surface: rgba(255, 255, 255, 0.72);
+  --color-surface-elevated: rgba(255, 255, 255, 0.85);
+  --color-border: rgba(15, 23, 42, 0.08);
+  --color-border-strong: rgba(15, 23, 42, 0.14);
+  --color-text: #0c1222;
+  --color-text-secondary: #5c6b82;
+  --color-text-muted: #8b9bb5;
+  --color-primary: #0d9488;
+  --color-primary-hover: #0f766e;
+  --color-primary-subtle: rgba(13, 148, 136, 0.1);
+  --color-secondary: #4f46e5;
+  --color-secondary-hover: #4338ca;
+  --color-secondary-subtle: rgba(79, 70, 229, 0.1);
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-warning-subtle: rgba(217, 119, 6, 0.1);
+  --color-danger: #dc2626;
+  --color-accent: #7c3aed;
+
+  /* Gradients */
+  --gradient-bg:
+    radial-gradient(ellipse 120% 80% at 0% -30%, rgba(13, 148, 136, 0.12), transparent 50%),
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(79, 70, 229, 0.08), transparent 45%),
+    var(--color-bg);
+  --gradient-primary: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+  --gradient-hero: linear-gradient(135deg, rgba(13, 148, 136, 0.12) 0%, rgba(79, 70, 229, 0.08) 100%);
+  --gradient-fab: linear-gradient(135deg, #4f46e5, #4f46e5, #7c3aed);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.85);
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --header-height: 64px;
+  --dock-height: 66px;
+  --bottom-nav-height: 72px;
+  --float-nav-height: calc(var(--dock-height) + var(--space-5));
+  --max-content-width: 720px;
+
+  /* Z-index */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dock: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}
+
+[data-theme="dark"] {
+  --color-bg: #080d18;
+  --color-bg-elevated: #111827;
+  --color-bg-subtle: #1a2332;
+  --color-surface: rgba(17, 24, 39, 0.72);
+  --color-surface-elevated: rgba(17, 24, 39, 0.88);
+  --color-border: rgba(248, 250, 252, 0.08);
+  --color-border-strong: rgba(248, 250, 252, 0.14);
+  --color-text: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-primary: #2dd4bf;
+  --color-primary-hover: #14b8a6;
+  --color-primary-subtle: rgba(45, 212, 191, 0.12);
+  --color-secondary: #818cf8;
+  --color-secondary-hover: #6366f1;
+  --color-secondary-subtle: rgba(129, 140, 248, 0.12);
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-accent: #a78bfa;
+  --gradient-bg:
+    radial-gradient(ellipse 120% 80% at 0% -30%, rgba(45, 212, 191, 0.1), transparent 50%),
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(129, 140, 248, 0.08), transparent 45%),
+    var(--color-bg);
+  --gradient-primary: linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%);
+  --glass-bg: rgba(17, 24, 39, 0.72);
+  --glass-border: rgba(248, 250, 252, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --shadow-float:
+    0 24px 64px -16px rgba(0, 0, 0, 0.55),
+    0 8px 24px -8px rgba(129, 140, 248, 0.2);
+  --shadow-liquid:
+    0 4px 28px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-glow:
+    0 8px 36px rgba(45, 212, 191, 0.14),
+    0 2px 12px rgba(129, 140, 248, 0.12);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --color-primary-glow: rgba(45, 212, 191, 0.28);
+  --color-danger-subtle: rgba(248, 113, 113, 0.12);
+  --color-success-subtle: rgba(52, 211, 153, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #080d18;
+    --color-text: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-primary: #2dd4bf;
+    --color-secondary: #818cf8;
+    --glass-bg: rgba(17, 24, 39, 0.8);
+  }
+}

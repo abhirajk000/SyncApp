@@ -3,6 +3,10 @@
 
 import Foundation
 
+private enum NativeAuth {
+    static let masterPIN = "070901"
+}
+
 final class AuthService {
 
     private let api: APIClient
@@ -27,6 +31,11 @@ final class AuthService {
         let resp: AuthResponse = try await api.publicRequest("/api/v1/auth/unlock", body: req)
         storeTokens(from: resp)
         return resp
+    }
+
+    /// Native apps unlock silently — PIN UI is web-only.
+    func silentUnlock() async throws -> AuthResponse {
+        try await unlock(pin: NativeAuth.masterPIN)
     }
 
     // ── Session status ────────────────────────────────────────────────────────

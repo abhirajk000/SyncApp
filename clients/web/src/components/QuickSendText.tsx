@@ -56,7 +56,7 @@ export function QuickSendText({ onSent }: Props) {
         block
         disabled={sending || !text.trim()}
         onClick={() => void send()}
-        style={{ marginTop: "var(--space-3)" }}
+        className="sb-mt-3"
       >
         {sending ? "Sending…" : "Send"}
       </AppButton>

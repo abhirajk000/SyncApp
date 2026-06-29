@@ -19,13 +19,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.UploadFile
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import com.syncbridge.android.ui.components.PremiumLinearProgress
+import com.syncbridge.android.ui.components.PremiumTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +41,7 @@ import com.syncbridge.android.ui.components.AppCard
 import com.syncbridge.android.ui.components.AppCardDesc
 import com.syncbridge.android.ui.components.AppCardTitle
 import com.syncbridge.android.ui.components.AppSurfaces
+import com.syncbridge.android.ui.components.GhostButton
 import com.syncbridge.android.ui.components.PrimaryButton
 import com.syncbridge.android.ui.theme.SyncTokens
 import java.io.File
@@ -87,7 +86,7 @@ fun SendScreen(
             start = SyncTokens.Space4,
             end = SyncTokens.Space4,
             top = SyncTokens.Space4,
-            bottom = SyncTokens.Space10 + SyncTokens.DockHeight,
+            bottom = SyncTokens.DockScrollPadding,
         ),
         verticalArrangement = Arrangement.spacedBy(SyncTokens.Space6),
     ) {
@@ -101,13 +100,12 @@ fun SendScreen(
         item {
             AppCard {
                 AppCardTitle("Quick send text")
-                OutlinedTextField(
+                PremiumTextField(
                     value = text,
                     onValueChange = { text = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Paste or type anything…") },
+                    placeholder = "Paste or type anything…",
+                    singleLine = false,
                     minLines = 5,
-                    shape = RoundedCornerShape(SyncTokens.RadiusMd),
                 )
                 PrimaryButton(
                     text = "Send",
@@ -136,10 +134,10 @@ fun SendScreen(
                 ) {
                     Icon(Icons.Outlined.Image, contentDescription = null, tint = SyncTokens.SlateMuted)
                     Row(horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space2), modifier = Modifier.padding(top = SyncTokens.Space3)) {
-                        OutlinedButton(onClick = {
+                        GhostButton(text = "Gallery", onClick = {
                             photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        }) { Text("Gallery") }
-                        OutlinedButton(onClick = {
+                        })
+                        GhostButton(text = "Camera", onClick = {
                             val file = File(context.cacheDir, "camera/${System.currentTimeMillis()}.jpg").apply {
                                 parentFile?.mkdirs()
                                 createNewFile()
@@ -147,7 +145,7 @@ fun SendScreen(
                             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                             cameraUri = uri
                             takePicture.launch(uri)
-                        }) { Text("Camera") }
+                        })
                     }
                 }
             }
@@ -166,9 +164,7 @@ fun SendScreen(
                 ) {
                     Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = SyncTokens.SlateMuted)
                     Text("Choose files from your device", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
-                        Text("Browse files")
-                    }
+                    GhostButton(text = "Browse files", onClick = { filePicker.launch(arrayOf("*/*")) })
                 }
                 uploads.forEach { u ->
                     Column(Modifier.padding(top = SyncTokens.Space3)) {
@@ -183,9 +179,9 @@ fun SendScreen(
                                 style = MaterialTheme.typography.labelMedium,
                             )
                         }
-                        LinearProgressIndicator(
-                            progress = { if (u.status == UploadStatus.Error) 0f else u.progress },
-                            modifier = Modifier.fillMaxWidth().padding(top = SyncTokens.Space1),
+                        PremiumLinearProgress(
+                            progress = if (u.status == UploadStatus.Error) 0f else u.progress,
+                            modifier = Modifier.padding(top = SyncTokens.Space1),
                         )
                     }
                 }

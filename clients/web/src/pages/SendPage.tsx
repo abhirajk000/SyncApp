@@ -2,8 +2,7 @@ import { QuickSendFiles, QuickSendImage, QuickSendText } from "../components";
 
 export function SendPage() {
   return (
-    <div className="ds-content-narrow ds-send-page">
-      <p className="ds-page-lead"></p>
+    <div className="sb-stack-3">
       <QuickSendText />
       <QuickSendImage />
       <QuickSendFiles />

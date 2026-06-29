@@ -1,5 +1,7 @@
 package com.syncbridge.android.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,25 +20,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.WifiTethering
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,27 +53,36 @@ fun DockBottomBar(
     current: MainTab,
     onNavigate: (MainTab) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+    val clipboardSelected = current == MainTab.Clipboard
+    val clipboardScale by animateFloatAsState(
+        targetValue = if (clipboardSelected) 1.06f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f),
+        label = "clipboardFabScale",
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = SyncTokens.Space4, vertical = SyncTokens.Space3),
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(SyncTokens.DockHeight)
-                .align(Alignment.BottomCenter),
-            shape = RoundedCornerShape(999.dp),
-            color = AppSurfaces.dock(),
-            shadowElevation = 8.dp,
-            tonalElevation = 0.dp,
-            border = BorderStroke(1.dp, AppSurfaces.cardBorder()),
+                .align(Alignment.BottomCenter)
+                .shadow(20.dp, BottomDockBarShape, clip = false, ambientColor = Color.Black.copy(0.42f))
+                .clip(BottomDockBarShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(AppSurfaces.dockFillTop(), AppSurfaces.dockFillBottom()),
+                    ),
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = SyncTokens.Space2),
+                modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Row(
@@ -76,17 +90,17 @@ fun DockBottomBar(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    DockNavItem(MainTab.Clipboard, Icons.Outlined.ContentPaste, current, onNavigate)
-                    DockNavItem(MainTab.Pinned, Icons.Outlined.PushPin, current, onNavigate)
+                    DockNavItem(MainTab.CloudSend, Icons.Outlined.CloudUpload, current, onNavigate, haptic)
+                    DockNavItem(MainTab.LocalSend, Icons.Outlined.WifiTethering, current, onNavigate, haptic)
                 }
-                Spacer(Modifier.width(56.dp))
+                Spacer(Modifier.width(76.dp))
                 Row(
                     modifier = Modifier.weight(1f),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    DockNavItem(MainTab.Files, Icons.Outlined.Folder, current, onNavigate)
-                    DockNavItem(MainTab.Settings, Icons.Outlined.Settings, current, onNavigate)
+                    DockNavItem(MainTab.Files, Icons.Outlined.Folder, current, onNavigate, haptic)
+                    DockNavItem(MainTab.Settings, Icons.Outlined.Settings, current, onNavigate, haptic)
                 }
             }
         }
@@ -94,25 +108,30 @@ fun DockBottomBar(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = (-4).dp)
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color(0xFF3B82F6), Color(0xFF6366F1), Color(0xFF7C3AED)),
-                    ),
+                .offset(y = (-10).dp)
+                .scale(clipboardScale)
+                .size(64.dp)
+                .shadow(
+                    elevation = if (clipboardSelected) 16.dp else 12.dp,
+                    shape = CircleShape,
+                    spotColor = SyncTokens.Teal.copy(alpha = if (clipboardSelected) 0.55f else 0.4f),
                 )
+                .clip(CircleShape)
+                .background(SyncTokens.Teal)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                ) { onNavigate(MainTab.Send) },
+                ) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNavigate(MainTab.Clipboard)
+                },
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                Icons.AutoMirrored.Outlined.Send,
-                contentDescription = "Send",
+                Icons.Outlined.ContentPaste,
+                contentDescription = "Clipboard",
                 tint = Color.White,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(28.dp),
             )
         }
     }
@@ -124,15 +143,19 @@ private fun DockNavItem(
     icon: ImageVector,
     current: MainTab,
     onNavigate: (MainTab) -> Unit,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
 ) {
     val selected = current == tab
 
     Surface(
-        onClick = { onNavigate(tab) },
-        shape = RoundedCornerShape(999.dp),
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onNavigate(tab)
+        },
+        shape = CircleShape,
         color = if (selected) SyncTokens.DockActiveBg else Color.Transparent,
         border = if (selected) BorderStroke(1.dp, SyncTokens.DockActiveBorder) else null,
-        shadowElevation = if (selected) 2.dp else 0.dp,
+        shadowElevation = if (selected) 3.dp else 0.dp,
         modifier = Modifier
             .width(72.dp)
             .height(52.dp),
@@ -150,8 +173,8 @@ private fun DockNavItem(
             )
             Text(
                 tab.label,
-                fontSize = 9.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 8.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = if (selected) SyncTokens.DockActiveGreen else SyncTokens.DockInactive,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

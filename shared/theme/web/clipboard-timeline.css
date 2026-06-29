@@ -1,0 +1,241 @@
+/* Phase 6 — Premium clipboard timeline (Apple Notes × Raycast) */
+
+.ds-clipboard-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-bottom: var(--space-4);
+}
+
+.ds-clipboard-timeline__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: var(--space-2) 0 var(--space-3);
+  background: linear-gradient(
+    180deg,
+    var(--color-bg) 0%,
+    var(--color-bg) 72%,
+    transparent 100%
+  );
+}
+
+.ds-clipboard-timeline__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ds-clipboard-timeline__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ds-clipboard-timeline__rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--space-2) 0;
+  margin-left: 0;
+  border-left: none;
+}
+
+.ds-clipboard-timeline__rail > .ds-clipboard-card::before {
+  display: none;
+}
+
+.ds-clipboard-timeline__date {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-left: var(--space-1);
+}
+
+/* ── Enhanced clipboard card ─────────────────────────────────── */
+
+.ds-clipboard-card {
+  position: relative;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color 0.28s var(--ease-liquid),
+    box-shadow 0.28s var(--ease-liquid),
+    transform 0.28s var(--ease-liquid);
+  overflow: hidden;
+}
+
+.ds-clipboard-card:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-highlight);
+  transform: translateY(-1px);
+}
+
+.ds-clipboard-card--insert {
+  animation: ds-clipboard-insert 0.5s var(--ease-liquid);
+}
+
+.ds-clipboard-card--copied {
+  border-color: var(--color-success);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-success) 55%, transparent),
+    var(--shadow-glow);
+}
+
+.ds-clipboard-card--pinned {
+  border-color: color-mix(in srgb, var(--color-secondary) 35%, var(--color-border));
+}
+
+@keyframes ds-clipboard-insert {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ds-clipboard-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.ds-clipboard-card__badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ds-clipboard-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.ds-clipboard-card__body {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.ds-clipboard-card__text {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ds-clipboard-card__text--large {
+  font-size: var(--text-base);
+  line-height: 1.6;
+  -webkit-line-clamp: 8;
+}
+
+.ds-clipboard-card__text:not(.ds-clipboard-card__text--large) {
+  -webkit-line-clamp: 4;
+}
+
+.ds-clipboard-card__image {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  background: color-mix(in srgb, var(--color-border) 40%, transparent);
+}
+
+.ds-clipboard-card__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.ds-clipboard-card__delete {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 2;
+}
+
+.ds-clipboard-card__copied {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  animation: ds-clipboard-copied-fade 0.85s var(--ease-liquid) forwards;
+  z-index: 3;
+}
+
+.ds-clipboard-card__copied span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-success);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+}
+
+@keyframes ds-clipboard-copied-fade {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.ds-clipboard-preview__text {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: min(60vh, 420px);
+  overflow: auto;
+}
+
+.ds-clipboard-preview__image {
+  width: 100%;
+  max-height: min(65vh, 480px);
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-border) 35%, transparent);
+}

@@ -1,324 +1,182 @@
-// HomeView.swift — Chronological feed aligned with macOS home.
+// HomeView.swift — Phase 5: Clipboard · Pinned · Files · Trusted Devices · Recent Activity
 
 import SwiftUI
 
+private let recentFilesLimit = 8
+private let pinnedPreviewLimit = 5
+private let activityLimit = 10
+
+private struct ActivityRow: Identifiable {
+    let id: String
+    let at: String
+    let kind: String
+    let label: String
+    let entry: ClipboardEntry?
+}
+
 struct HomeView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.colorScheme) private var colorScheme
     let onNavigate: (MainTab) -> Void
 
-    private var unpinnedSorted: [ClipboardEntry] {
-        appState.clipboardHistory
-            .filter { !$0.pinned }
-            .sorted { $0.createdAt > $1.createdAt }
+    private var unpinned: [ClipboardEntry] {
+        appState.clipboardHistory.filter { !$0.pinned }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var pinned: [ClipboardEntry] {
+        appState.clipboardHistory.filter { $0.pinned }.sorted { $0.createdAt > $1.createdAt }.prefix(pinnedPreviewLimit).map { $0 }
+    }
+
+    private var pinnedFiles: [FileItem] {
+        appState.files.filter { $0.isPinned && $0.status == "ready" }.sorted { $0.createdAt > $1.createdAt }.prefix(4).map { $0 }
     }
 
     private var recentFiles: [FileItem] {
-        appState.files
-            .filter { !$0.isPinned && $0.status == "ready" }
-            .sorted { $0.createdAt > $1.createdAt }
-            .prefix(12)
-            .map { $0 }
+        appState.files.filter { !$0.isPinned && $0.status == "ready" }.sorted { $0.createdAt > $1.createdAt }.prefix(recentFilesLimit).map { $0 }
+    }
+
+    private var latestText: ClipboardEntry? { unpinned.first { !isImageContentType($0.contentType) } }
+    private var latestImage: ClipboardEntry? { unpinned.first { isImageContentType($0.contentType) } }
+    private var earlier: [ClipboardEntry] {
+        unpinned.filter { $0.id != latestText?.id && $0.id != latestImage?.id }
+    }
+
+    private var activity: [ActivityRow] {
+        var rows: [ActivityRow] = []
+        for entry in appState.clipboardHistory {
+            let label = isImageContentType(entry.contentType) ? "Image copied" : clipboardDisplayText(entry.content, max: 120)
+            rows.append(ActivityRow(id: "clip-\(entry.id)", at: entry.createdAt, kind: "Clipboard", label: label, entry: entry))
+        }
+        for file in appState.files where file.status == "ready" {
+            rows.append(ActivityRow(id: "file-\(file.id)", at: file.createdAt, kind: "File", label: "\(file.name) · \(formatBytes(file.totalSize))", entry: nil))
+        }
+        return rows.sorted { $0.at > $1.at }.prefix(activityLimit).map { $0 }
     }
 
     var body: some View {
-        let latest = unpinnedSorted.first
-        let earlier = Array(unpinnedSorted.dropFirst())
-        let isEmpty = latest == nil && recentFiles.isEmpty
-
         ScrollView {
-            VStack(alignment: .leading, spacing: SyncTokens.space4) {
-                HStack(alignment: .top) {
-                    TrustedDevicesBar(
-                        serverURL: appState.serverURL,
-                        accessToken: appState.accessToken
-                    )
-                    Spacer(minLength: SyncTokens.space2)
-                    HomeRefreshButton(isRefreshing: appState.isRefreshing) {
-                        Task { await appState.refreshAll() }
-                    }
-                }
-
-                if appState.clipboardPastePending {
-                    ClipboardPasteBanner()
-                }
-
-                if isEmpty {
-                    AppEmptyState(
-                        icon: "doc.on.clipboard",
-                        title: "Nothing synced yet",
-                        description: "Copy text or an image on any device — it appears here automatically."
-                    )
-                    .padding(.top, SyncTokens.space4)
-                } else {
-                    if let latest {
-                        homeSection("Latest") {
-                            if isImageContentType(latest.contentType) {
-                                HomeLatestImageCard(
-                                    entry: latest,
-                                    serverURL: appState.serverURL,
-                                    accessToken: appState.accessToken
-                                ) {
-                                    appState.copyEntry(latest)
-                                }
-                            } else {
-                                HomeLatestTextCard(entry: latest) {
-                                    appState.copyEntry(latest)
-                                }
-                            }
-                        }
-                    }
-
-                    if !earlier.isEmpty {
-                        homeSection("Earlier") {
-                            VStack(spacing: SyncTokens.space2) {
-                                ForEach(earlier) { entry in
-                                    if isImageContentType(entry.contentType) {
-                                        HomeEarlierImageRow(
-                                            entry: entry,
-                                            serverURL: appState.serverURL,
-                                            accessToken: appState.accessToken
-                                        ) {
-                                            appState.copyEntry(entry)
-                                        }
-                                    } else {
-                                        HomeEarlierTextRow(entry: entry) {
-                                            appState.copyEntry(entry)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if !recentFiles.isEmpty {
-                        HStack(alignment: .firstTextBaseline) {
-                            sectionTitle("Recent files")
-                            Spacer()
-                            Button("See all") { onNavigate(.files) }
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(SyncTokens.teal)
-                        }
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 88), spacing: SyncTokens.space2)],
-                            spacing: SyncTokens.space2
-                        ) {
-                            ForEach(recentFiles) { file in
-                                FileGridItemView(file: file, compact: true)
-                            }
-                        }
-                    }
-                }
+            VStack(alignment: .leading, spacing: SyncTokens.space8) {
+                clipboardSection
+                if !pinned.isEmpty || !pinnedFiles.isEmpty { pinnedSection }
+                filesSection
+                trustedDevicesSection
+                if !activity.isEmpty { activitySection }
             }
             .padding(.horizontal, SyncTokens.space4)
             .padding(.top, SyncTokens.space4)
             .padding(.bottom, SyncTokens.space10 + SyncTokens.dockHeight)
         }
-        .task {
-            await appState.refreshAll()
-        }
+        .task { await appState.refreshAll() }
     }
 
-    private func homeSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: SyncTokens.space2) {
-            sectionTitle(title)
-            content()
-        }
-    }
+    // MARK: - Sections
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .tracking(0.8)
-            .foregroundStyle(SyncTokens.slateMuted)
-    }
-}
-
-// MARK: - Refresh
-
-struct HomeRefreshButton: View {
-    @Environment(\.colorScheme) private var colorScheme
-    let isRefreshing: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(SyncTokens.teal)
-                .rotationEffect(.degrees(isRefreshing ? 360 : 0))
-                .animation(isRefreshing ? .linear(duration: 0.8).repeatForever(autoreverses: false) : .default, value: isRefreshing)
-                .frame(width: 36, height: 36)
-                .background(AppSurfaces.card(colorScheme))
-                .clipShape(Circle())
-                .overlay(Circle().stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .disabled(isRefreshing)
-        .accessibilityLabel("Refresh")
-    }
-}
-
-// MARK: - Cards (macOS-aligned)
-
-private struct HomeLatestTextCard: View {
-    @Environment(\.colorScheme) private var colorScheme
-    let entry: ClipboardEntry
-    let onTap: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Button(action: onTap) {
-                VStack(alignment: .leading, spacing: SyncTokens.space1) {
-                    Text(clipboardDisplayText(entry.content, max: 160))
-                        .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(AppSurfaces.onSurface(colorScheme))
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.trailing, SyncTokens.space6)
-                    Text(relativeTime(entry.createdAt))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(SyncTokens.slateSecondary)
-                }
-                .padding(SyncTokens.space4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppSurfaces.card(colorScheme))
-                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
-                .overlay(
-                    RoundedRectangle(cornerRadius: SyncTokens.radiusMd)
-                        .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+    private var clipboardSection: some View {
+        VStack(alignment: .leading, spacing: SyncTokens.space4) {
+            AppSectionTitle(title: "Clipboard")
+            if unpinned.isEmpty {
+                AppEmptyState(
+                    illustration: .clipboard,
+                    title: "No clipboard items",
+                    description: "Copy text or an image on any device — it appears here automatically."
                 )
-            }
-            .buttonStyle(.plain)
-
-            ClipboardItemActionMenu(entry: entry)
-                .padding(SyncTokens.space2)
-                .zIndex(10)
-        }
-    }
-}
-
-private struct HomeLatestImageCard: View {
-    @Environment(\.colorScheme) private var colorScheme
-    let entry: ClipboardEntry
-    let serverURL: String
-    let accessToken: String?
-    let onTap: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Button(action: onTap) {
-                VStack(alignment: .leading, spacing: SyncTokens.space2) {
-                    ClipboardImageThumb(
-                        entry: entry,
-                        serverURL: serverURL,
-                        accessToken: accessToken,
-                        maxHeight: 100
+            } else {
+                if let latestText {
+                    LatestTextCard(entry: latestText, title: "Latest text", onCopy: { appState.copyEntry(latestText) })
+                }
+                if let latestImage {
+                    LatestImageCard(
+                        entry: latestImage,
+                        serverURL: appState.serverURL,
+                        accessToken: appState.accessToken,
+                        title: "Latest image",
+                        onCopy: { appState.copyEntry(latestImage) }
                     )
-                    .frame(maxWidth: .infinity)
-                    Text("Tap to copy · \(relativeTime(entry.createdAt))")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(SyncTokens.slateSecondary)
                 }
-                .padding(SyncTokens.space4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppSurfaces.card(colorScheme))
-                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
-                .overlay(
-                    RoundedRectangle(cornerRadius: SyncTokens.radiusMd)
-                        .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-
-            ClipboardItemActionMenu(entry: entry)
-                .padding(SyncTokens.space2)
-                .zIndex(10)
-        }
-    }
-}
-
-private struct HomeEarlierTextRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-    let entry: ClipboardEntry
-    let onTap: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Button(action: onTap) {
-                HStack(alignment: .top, spacing: SyncTokens.space2) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(SyncTokens.teal)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: SyncTokens.space1) {
-                        Text(clipboardDisplayText(entry.content, max: 200))
-                            .font(.system(size: 14, design: .rounded))
-                            .foregroundStyle(AppSurfaces.onSurface(colorScheme))
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.trailing, SyncTokens.space6)
-                        Text(relativeTime(entry.createdAt))
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(SyncTokens.slateSecondary)
+                VStack(spacing: SyncTokens.space2) {
+                    ForEach(earlier) { entry in
+                        if isImageContentType(entry.contentType) {
+                            EarlierImageRow(
+                                entry: entry,
+                                serverURL: appState.serverURL,
+                                accessToken: appState.accessToken,
+                                onCopy: { appState.copyEntry(entry) }
+                            )
+                        } else {
+                            EarlierTextRow(entry: entry, onCopy: { appState.copyEntry(entry) })
+                        }
                     }
                 }
-                .padding(SyncTokens.space4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppSurfaces.card(colorScheme))
-                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
-                .overlay(
-                    RoundedRectangle(cornerRadius: SyncTokens.radiusMd)
-                        .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
-                )
             }
-            .buttonStyle(.plain)
-
-            ClipboardItemActionMenu(entry: entry)
-                .padding(SyncTokens.space2)
-                .zIndex(10)
         }
     }
-}
 
-private struct HomeEarlierImageRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-    let entry: ClipboardEntry
-    let serverURL: String
-    let accessToken: String?
-    let onTap: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Button(action: onTap) {
-                VStack(alignment: .leading, spacing: SyncTokens.space2) {
-                    ClipboardImageThumb(
-                        entry: entry,
-                        serverURL: serverURL,
-                        accessToken: accessToken,
-                        maxHeight: 80
-                    )
-                    .frame(maxWidth: .infinity)
-                    Text("Image · \(relativeTime(entry.createdAt))")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(SyncTokens.slateSecondary)
-                }
-                .padding(SyncTokens.space4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppSurfaces.card(colorScheme))
-                .clipShape(RoundedRectangle(cornerRadius: SyncTokens.radiusMd))
-                .overlay(
-                    RoundedRectangle(cornerRadius: SyncTokens.radiusMd)
-                        .stroke(AppSurfaces.cardBorder(colorScheme), lineWidth: 1)
+    private var pinnedSection: some View {
+        VStack(alignment: .leading, spacing: SyncTokens.space4) {
+            SectionHeaderRow(title: "Pinned", actionLabel: "See all", onAction: { onNavigate(.clipboard) })
+            ForEach(pinned) { entry in
+                ClipboardCard(
+                    entry: entry,
+                    onCopy: { appState.copyEntry(entry) },
+                    onDelete: { Task { await appState.deleteClipboard(entry) } }
                 )
             }
-            .buttonStyle(.plain)
+            if !pinnedFiles.isEmpty {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: SyncTokens.space4)], spacing: SyncTokens.space4) {
+                    ForEach(pinnedFiles) { file in
+                        FileGridItemView(file: file, compact: true)
+                    }
+                }
+            }
+        }
+    }
 
-            ClipboardItemActionMenu(entry: entry)
-                .padding(SyncTokens.space2)
-                .zIndex(10)
+    private var filesSection: some View {
+        VStack(alignment: .leading, spacing: SyncTokens.space4) {
+            SectionHeaderRow(title: "Files", actionLabel: "See all", onAction: { onNavigate(.files) })
+            if recentFiles.isEmpty {
+                AppEmptyState(
+                    illustration: .files,
+                    title: "No files yet",
+                    description: "Send files from another device — they appear here when ready."
+                )
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: SyncTokens.space4)], spacing: SyncTokens.space4) {
+                    ForEach(recentFiles) { file in
+                        FileGridItemView(file: file, compact: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private var trustedDevicesSection: some View {
+        TrustedDevicesBar(serverURL: appState.serverURL, accessToken: appState.accessToken)
+    }
+
+    private var activitySection: some View {
+        VStack(alignment: .leading, spacing: SyncTokens.space4) {
+            AppSectionTitle(title: "Recent activity")
+            VStack(spacing: SyncTokens.space2) {
+                ForEach(activity) { row in
+                    GlassListRow(
+                        onTap: row.entry.map { entry in { appState.copyEntry(entry) } }
+                    ) {
+                        HStack(spacing: SyncTokens.space2) {
+                            PremiumChip(
+                                label: row.kind,
+                                variant: row.kind == "Clipboard" ? .primary : .neutral
+                            )
+                            Text(relativeTime(row.at))
+                                .font(SyncFont.caption())
+                                .foregroundStyle(SyncTokens.slateMuted)
+                        }
+                        Text(row.label)
+                            .font(SyncFont.bodySm())
+                            .lineLimit(2)
+                            .padding(.top, SyncTokens.space1)
+                    }
+                }
+            }
         }
     }
 }

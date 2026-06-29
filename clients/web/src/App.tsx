@@ -8,25 +8,24 @@ import {
 } from "./api";
 import {
   AppButton,
-  AppBottomNav,
-  AppLayout,
+  AppShell as AppShellLayout,
   AppLoader,
   AppModal,
   type NavId,
-  AppTopBar,
 } from "./components";
 import { ThemeProvider } from "./design/ThemeProvider";
 import { NetworkProvider, networkService } from "./design/NetworkProvider";
+import { LocalSendProvider } from "./design/LocalSendProvider";
 import { ToastProvider, useToast } from "./design/ToastProvider";
-import { PinnedPage } from "./pages/ClipboardPage";
 import { FilesPage } from "./pages/FilesPage";
-import { HomePage } from "./pages/HomePage";
+import { ClipboardHubPage } from "./pages/ClipboardHubPage";
 import { LoginPage } from "./pages/LoginPage";
-import { SendPage } from "./pages/SendPage";
+import { CloudSendPage } from "./pages/CloudSendPage";
+import { LocalSendPage } from "./pages/LocalSendPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { DevicesPage } from "./pages/DevicesPage";
 import { SyncBridgeWS, payloadToClipboardEntry } from "./ws";
-import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "./lib/clipboard";
+import { copyEntryToClipboard, clearThumbnailCache, imageDataUrl, isImageContentType } from "./lib/clipboard";
 import { loadClipboardSettings } from "./lib/clipboardSettings";
 import { ensureDeviceId } from "./api";
 import { Check } from "lucide-react";
@@ -47,7 +46,7 @@ function useStableConnection(live: boolean): boolean {
   return stable;
 }
 
-function AppShell() {
+function AuthenticatedApp() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
   const [nav, setNav] = useState<NavId>("clipboard");
@@ -179,9 +178,21 @@ function AppShell() {
     ws.connect();
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") ws.connect();
+      if (document.visibilityState === "visible") {
+        ws.connect();
+        networkService.resume();
+        window.dispatchEvent(new CustomEvent("syncbridge:app-refresh"));
+      } else {
+        networkService.pause();
+        ws.disconnect();
+        clearThumbnailCache();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
+    if (document.visibilityState === "hidden") {
+      networkService.pause();
+      ws.disconnect();
+    }
 
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
@@ -236,11 +247,11 @@ function AppShell() {
   function renderPage() {
     switch (nav) {
       case "clipboard":
-        return <HomePage />;
-      case "pinned":
-        return <PinnedPage />;
-      case "send":
-        return <SendPage />;
+        return <ClipboardHubPage />;
+      case "cloud_send":
+        return <CloudSendPage />;
+      case "local_send":
+        return <LocalSendPage />;
       case "files":
         return <FilesPage />;
       case "settings":
@@ -257,18 +268,19 @@ function AppShell() {
   }
 
   return (
-    <AppLayout>
-      <div className="ds-main">
-        <AppTopBar connected={showConnected} refreshing={refreshing} onRefresh={handleRefresh} />
-        <main className="ds-content">{renderPage()}</main>
-      </div>
-      <AppBottomNav
-        active={nav}
+    <>
+      <AppShellLayout
+        activeTab={nav}
         onNavigate={(id) => {
           if (id !== "settings") setSettingsView("main");
           setNav(id);
         }}
-      />
+        connected={showConnected}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+      >
+        {renderPage()}
+      </AppShellLayout>
       <AppModal
         open={!!latestPopup}
         title="Latest Clipboard"
@@ -279,23 +291,22 @@ function AppShell() {
       >
         {latestPopup && (
           <>
-            <p className="ds-subtitle" style={{ marginBottom: "var(--space-4)" }}>
+            <p className="ds-subtitle ds-modal-meta">
               {relativeTime(latestPopup.created_at)}
             </p>
             {isImageContentType(latestPopup.content_type) ? (
               <img
                 src={imageDataUrl(latestPopup)}
                 alt="Clipboard"
-                className="ds-image-preview"
-                style={{ marginBottom: "var(--space-4)", cursor: "pointer" }}
+                className="ds-image-preview ds-modal-preview"
                 onClick={() => void copyLatest()}
               />
             ) : (
-              <AppButton variant="ghost" block onClick={copyLatest} style={{ textAlign: "left", whiteSpace: "pre-wrap" }}>
+              <AppButton variant="ghost" block onClick={copyLatest} className="ds-btn--prewrap">
                 {latestPopup.content}
               </AppButton>
             )}
-            <AppButton block onClick={copyLatest} style={{ marginTop: "var(--space-3)" }}>
+            <AppButton block onClick={copyLatest} className="sb-mt-3">
               {isImageContentType(latestPopup.content_type) ? "Copy Image" : "Copy"}
             </AppButton>
             {copied && (
@@ -307,7 +318,7 @@ function AppShell() {
           </>
         )}
       </AppModal>
-    </AppLayout>
+    </>
   );
 }
 
@@ -315,11 +326,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <NetworkProvider>
-        <ToastProvider>
-          <div className="ds-app">
-            <AppShell />
-          </div>
-        </ToastProvider>
+        <LocalSendProvider>
+          <ToastProvider>
+            <div className="ds-app">
+              <AuthenticatedApp />
+            </div>
+          </ToastProvider>
+        </LocalSendProvider>
       </NetworkProvider>
     </ThemeProvider>
   );

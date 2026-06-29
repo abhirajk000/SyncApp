@@ -18,7 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.syncbridge.android.sync.SyncClipboardService
 import com.syncbridge.android.ui.AppViewModel
 import com.syncbridge.android.ui.MainShell
-import com.syncbridge.android.ui.screens.LoginScreen
+import com.syncbridge.android.ui.screens.ConnectingScreen
 import com.syncbridge.android.ui.theme.SyncBridgeTheme
 
 class MainActivity : ComponentActivity() {
@@ -53,15 +53,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                if (!state.isAuthenticated) {
-                    LoginScreen(
+                if (state.isAuthenticated) {
+                    MainShell(vm = vm)
+                } else {
+                    ConnectingScreen(
                         loading = state.loading,
                         error = state.error,
-                        onUnlock = { pin -> vm.unlock(pin) { } },
-                        onPairQr = { raw -> vm.pairFromQr(raw) { } },
+                        onConnect = { vm.ensureAuthenticated() },
                     )
-                } else {
-                    MainShell(vm = vm)
                 }
             }
         }
@@ -69,6 +68,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        val app = application as SyncBridgeApp
+        com.syncbridge.android.util.AppForeground.setForeground(true)
+        app.networkManager.setUiActive(true)
+        app.localSendManager.start()
+    }
+
+    override fun onStop() {
+        val app = application as SyncBridgeApp
+        com.syncbridge.android.util.AppForeground.setForeground(false)
+        app.networkManager.setUiActive(false)
+        app.localSendManager.stop()
+        super.onStop()
     }
 
     override fun onPause() {

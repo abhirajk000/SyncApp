@@ -32,7 +32,7 @@ export function LoginPage({ onSuccess }: Props) {
   }
 
   return (
-    <div className="ds-login-wrap ds-app">
+    <div className="ds-login-wrap">
       <AppCard className="ds-login-card">
         <div className="ds-login-hero">
           <AppIcon size="lg" className="ds-login-hero-icon" alt="" />

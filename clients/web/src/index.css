@@ -1,5 +1,14 @@
 @import "./design/tokens.css";
+@import "../../../shared/theme/web/animations.css";
+@import "../../../shared/ui/web/primitives.css";
+@import "../../../shared/ui/web/shell.css";
 @import "./design/components.css";
+@import "../../../shared/theme/web/premium-components.css";
+@import "../../../shared/theme/web/visual-polish.css";
+@import "../../../shared/theme/web/clipboard-timeline.css";
+@import "../../../shared/theme/web/local-send.css";
+@import "../../../shared/theme/web/one-ui-containers.css";
+@import "../../../shared/theme/web/performance.css";
 
 *,
 *::before,

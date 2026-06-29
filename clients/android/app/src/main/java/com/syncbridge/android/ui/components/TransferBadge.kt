@@ -14,14 +14,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syncbridge.android.network.TransferRoute
+import com.syncbridge.android.ui.theme.SyncTokens
 
 @Composable
 fun TransferBadge(transferMode: String?, modifier: Modifier = Modifier) {
     val route = TransferRoute.fromTransferMode(transferMode)
     val (bg, fg, border) = when (route) {
-        TransferRoute.Cloud -> Triple(Color(0x1F3B82F6), Color(0xFF2563EB), Color(0x333B82F6))
-        TransferRoute.DirectLan -> Triple(Color(0x1F22C55E), Color(0xFF15803D), Color(0x4022C55E))
-        TransferRoute.WebRtc -> Triple(Color(0x1F8B5CF6), Color(0xFF7C3AED), Color(0x338B5CF6))
+        TransferRoute.Cloud -> Triple(SyncTokens.BadgeCloudBg, SyncTokens.BadgeCloudFg, SyncTokens.BadgeCloudBorder)
+        TransferRoute.DirectLan -> Triple(SyncTokens.BadgeLanBg, SyncTokens.BadgeLanFg, SyncTokens.BadgeLanBorder)
+        TransferRoute.WebRtc -> Triple(SyncTokens.BadgeRtcBg, SyncTokens.BadgeRtcFg, SyncTokens.BadgeRtcBorder)
     }
     Row(
         modifier = modifier

@@ -11,11 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Devices
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,7 +53,9 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(SyncTokens.Space6),
     ) {
         Column(
-            modifier = Modifier.padding(top = SyncTokens.Space4, bottom = SyncTokens.Space10 + SyncTokens.DockHeight),
+            modifier = Modifier
+                .padding(top = SyncTokens.Space4, bottom = SyncTokens.DockScrollPadding)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
         ) {
             AppSectionTitle("Devices")
@@ -148,21 +153,23 @@ fun SettingsScreen(
 
             AppSectionTitle("Account")
             AppCard {
-                Button(
-                    onClick = onLogout,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(SyncTokens.RadiusMd),
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(SyncTokens.RadiusMd))
+                        .background(SyncTokens.Danger.copy(alpha = 0.12f))
+                        .clickable(onClick = onLogout),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         Icons.AutoMirrored.Outlined.Logout,
                         contentDescription = null,
+                        tint = SyncTokens.Danger,
                         modifier = Modifier.padding(end = SyncTokens.Space2),
                     )
-                    Text("Log out")
+                    Text("Log out", color = SyncTokens.Danger, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

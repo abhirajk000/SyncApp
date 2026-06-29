@@ -7,71 +7,16 @@ import {
   pinClipboard,
 } from "../api";
 import {
-  AppButton,
   AppEmptyState,
   AppSection,
   AppSkeleton,
+  ClipboardCard,
 } from "../components";
 import { ClipboardImageThumb } from "../components/ClipboardImageThumb";
-import { ItemDeleteButton } from "../components/ItemDeleteButton";
-import { IconPin } from "../components/Icons";
 import { copyEntryToClipboard, imageDataUrl, isImageContentType } from "../lib/clipboard";
-import { relativeTime } from "../lib/format";
 import { useToast } from "../design/ToastProvider";
-import { TransferBadge } from "../components/TransferBadge";
 
-function ClipboardHistoryItem({
-  entry,
-  onPin,
-  onDelete,
-}: {
-  entry: ClipboardEntry;
-  onPin: () => void;
-  onDelete: () => void;
-}) {
-  const { toast } = useToast();
-  const isImage = isImageContentType(entry.content_type);
-
-  async function copy() {
-    try {
-      await copyEntryToClipboard(entry);
-      toast(isImage ? "Image copied" : "Copied", "success");
-    } catch {
-      toast("Could not copy", "danger");
-    }
-  }
-
-  return (
-    <li className="ds-list-item">
-      <div className="ds-list-body">
-        {isImage ? (
-          entry.has_thumbnail || !entry.content ? (
-            <ClipboardImageThumb entryId={entry.id} className="ds-image-preview ds-image-preview--thumb" />
-          ) : (
-            <img src={imageDataUrl(entry)} alt="" className="ds-image-preview ds-image-preview--thumb" loading="lazy" />
-          )
-        ) : (
-          <span className="ds-list-primary">{entry.content}</span>
-        )}
-        <span className="ds-list-meta">
-          {entry.content_type} · {relativeTime(entry.created_at)}
-        </span>
-        <TransferBadge transferMode={entry.transfer_route ?? "relay"} className="ds-transfer-badge--inline" />
-      </div>
-      <div className="ds-list-actions">
-        <AppButton variant="ghost" size="sm" onClick={() => void copy()}>
-          {isImage ? "Copy Image" : "Copy"}
-        </AppButton>
-        <AppButton variant="ghost" size="sm" onClick={onPin}>
-          Unpin
-        </AppButton>
-        <ItemDeleteButton onClick={onDelete} />
-      </div>
-    </li>
-  );
-}
-
-export function PinnedPage() {
+export function PinnedPage({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +70,15 @@ export function PinnedPage() {
     };
   }, [load]);
 
+  async function copyEntry(entry: ClipboardEntry) {
+    try {
+      await copyEntryToClipboard(entry);
+      toast(isImageContentType(entry.content_type) ? "Image copied" : "Copied", "success");
+    } catch {
+      toast("Could not copy", "danger");
+    }
+  }
+
   async function unpin(entry: ClipboardEntry) {
     try {
       await pinClipboard(entry.id, false);
@@ -145,35 +99,94 @@ export function PinnedPage() {
     }
   }
 
+  const pageHeader = !embedded && (
+    <div>
+      <h1 className="ds-page-title">Pinned</h1>
+      <p className="ds-page-lead">Items you keep forever — synced across all devices.</p>
+    </div>
+  );
+
   if (loading && entries.length === 0) {
-    return <AppSkeleton rows={6} />;
+    return embedded ? (
+      <AppSkeleton rows={6} />
+    ) : (
+      <div className="sb-page-stack">
+        {pageHeader}
+        <AppSkeleton rows={6} />
+      </div>
+    );
   }
 
   if (!loading && entries.length === 0) {
-    return (
+    const empty = (
       <AppEmptyState
-        icon={<IconPin size={24} />}
+        illustration="pinned"
         title="No pinned items"
         description="Pin clipboard entries to keep them synced across all devices."
       />
     );
+    return embedded ? empty : (
+      <div className="sb-page-stack">
+        {pageHeader}
+        {empty}
+      </div>
+    );
+  }
+
+  const list = (
+    <ul className="sb-oneui-group">
+      {entries.map((entry) => {
+        const isImage = isImageContentType(entry.content_type);
+        return (
+          <li key={entry.id} className="sb-oneui-group__item sb-oneui-group__item--clipboard">
+            <div className="sb-oneui-group__body">
+              <ClipboardCard
+                content={isImage ? "" : entry.content}
+                createdAt={entry.created_at}
+                pinned
+                transferRoute={entry.transfer_route ?? "relay"}
+                isImage={isImage}
+                onCopy={() => void copyEntry(entry)}
+                onDelete={() => void remove(entry)}
+                onPin={() => void unpin(entry)}
+              >
+                {isImage &&
+                  (entry.has_thumbnail || !entry.content ? (
+                    <ClipboardImageThumb
+                      entryId={entry.id}
+                      className="ds-clipboard-card__image ds-image-preview"
+                    />
+                  ) : (
+                    <img
+                      src={imageDataUrl(entry)}
+                      alt=""
+                      className="ds-clipboard-card__image"
+                      loading="lazy"
+                      draggable={false}
+                    />
+                  ))}
+              </ClipboardCard>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {error && <p className="ds-error ds-error--spaced">{error}</p>}
+        {list}
+      </>
+    );
   }
 
   return (
-    <div className="ds-content-narrow">
-      {error && <p className="ds-error" style={{ marginBottom: "var(--space-4)" }}>{error}</p>}
-      <AppSection title="Pinned">
-        <ul className="ds-list">
-          {entries.map((entry) => (
-            <ClipboardHistoryItem
-              key={entry.id}
-              entry={entry}
-              onPin={() => unpin(entry)}
-              onDelete={() => void remove(entry)}
-            />
-          ))}
-        </ul>
-      </AppSection>
+    <div className="sb-page-stack">
+      {pageHeader}
+      {error && <p className="ds-error ds-error--spaced">{error}</p>}
+      <AppSection title="Pinned">{list}</AppSection>
     </div>
   );
 }

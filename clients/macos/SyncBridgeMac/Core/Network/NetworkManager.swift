@@ -56,23 +56,38 @@ final class NetworkManager: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var advertiseTask: Task<Void, Never>?
     private var clientIp = ""
+    private var uiActive = true
 
     init(auth: AuthService) {
         self.auth = auth
+    }
+
+    /// Slow or skip LAN polling when the app is not active (saves CPU/battery).
+    func setUiActive(_ active: Bool) {
+        uiActive = active
+        if active {
+            Task { await refresh() }
+        }
     }
 
     func start() {
         stop()
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refresh()
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                if self?.uiActive == true {
+                    await self?.refresh()
+                }
+                let delayNs: UInt64 = self?.uiActive == true ? 15_000_000_000 : 300_000_000_000
+                try? await Task.sleep(nanoseconds: delayNs)
             }
         }
         advertiseTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60_000_000_000)
-                await self?.advertiseOnce()
+                let delayNs: UInt64 = self?.uiActive == true ? 60_000_000_000 : 300_000_000_000
+                try? await Task.sleep(nanoseconds: delayNs)
+                if self?.uiActive == true {
+                    await self?.advertiseOnce()
+                }
             }
         }
     }

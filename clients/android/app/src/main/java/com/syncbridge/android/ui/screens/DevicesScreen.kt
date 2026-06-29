@@ -12,15 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,8 +30,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.DeviceEntry
-import com.syncbridge.android.ui.components.AppCard
+import com.syncbridge.android.ui.components.ContainerGroup
+import com.syncbridge.android.ui.components.ContainerGroupItem
+import com.syncbridge.android.ui.components.AppEmptyState
+import com.syncbridge.android.ui.components.AppSkeleton
+import com.syncbridge.android.ui.components.EmptyArt
+import com.syncbridge.android.ui.components.AppModal
 import com.syncbridge.android.ui.components.AppSectionTitle
+import com.syncbridge.android.ui.components.GhostButton
+import com.syncbridge.android.ui.components.PremiumIconButton
 import com.syncbridge.android.ui.theme.SyncTokens
 import com.syncbridge.android.util.relativeTime
 import kotlinx.coroutines.launch
@@ -50,9 +51,7 @@ fun DevicesScreen(
 ) {
     var devices by remember { mutableStateOf<List<DeviceEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var renameTarget by remember { mutableStateOf<DeviceEntry?>(null) }
-    var renameValue by remember { mutableStateOf("") }
-    var saving by remember { mutableStateOf(false) }
+    var removeTarget by remember { mutableStateOf<DeviceEntry?>(null) }
     val scope = rememberCoroutineScope()
 
     fun reload() {
@@ -75,107 +74,87 @@ fun DevicesScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(SyncTokens.Space4),
+            .padding(
+                start = SyncTokens.Space4,
+                end = SyncTokens.Space4,
+                top = SyncTokens.Space4,
+                bottom = SyncTokens.DockScrollPadding,
+            ),
         verticalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
+            PremiumIconButton(
+                onClick = onBack,
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+            )
             Text("Devices", style = MaterialTheme.typography.titleLarge)
         }
 
         if (loading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-        }
-
-        current?.let { device ->
-            AppSectionTitle("This device")
-            DeviceCard(
-                device = device,
-                onRename = {
-                    renameTarget = device
-                    renameValue = device.name
-                },
-            )
-        }
-
-        AppSectionTitle("Trusted devices")
-        if (others.isEmpty()) {
-            AppCard {
-                Text(
-                    "No other devices yet. Pair from your Mac or web settings.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            AppSkeleton(rows = 4)
         } else {
-            others.forEach { device ->
-                DeviceCard(
-                    device = device,
-                    onRename = {
-                        renameTarget = device
-                        renameValue = device.name
-                    },
-                    onTrust = if (!isTrusted(device)) {{ scope.launch { api.trustDevice(device.id); reload() } }} else null,
-                    onRemove = { scope.launch { api.revokeDevice(device.id); reload() } },
+            current?.let { device ->
+                AppSectionTitle("This device")
+                ContainerGroup {
+                    TrustedDeviceContent(device = device)
+                }
+            }
+
+            AppSectionTitle("Trusted devices")
+            if (others.isEmpty()) {
+                AppEmptyState(
+                    title = "No other devices",
+                    description = "Pair from your Mac or web settings to see them here.",
+                    illustration = EmptyArt.Devices,
                 )
+            } else {
+                ContainerGroup {
+                    others.forEachIndexed { index, device ->
+                        ContainerGroupItem(showDivider = index < others.lastIndex) {
+                            TrustedDeviceContent(
+                                device = device,
+                                onTrust = if (!isTrusted(device)) {{ scope.launch { api.trustDevice(device.id); reload() } }} else null,
+                                onRemove = { removeTarget = device },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 
-    if (renameTarget != null) {
-        AlertDialog(
-            onDismissRequest = { renameTarget = null },
-            title = { Text("Rename device") },
-            text = {
-                OutlinedTextField(
-                    value = renameValue,
-                    onValueChange = { renameValue = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+    removeTarget?.let { device ->
+        AppModal(
+            title = "Remove device",
+            message = "Remove \"${device.name}\" from your account?",
+            confirmText = "Remove",
+            dismissText = "Cancel",
+            onConfirm = {
+                scope.launch {
+                    api.revokeDevice(device.id)
+                    removeTarget = null
+                    reload()
+                }
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val target = renameTarget ?: return@TextButton
-                        saving = true
-                        scope.launch {
-                            try {
-                                api.renameDevice(target.id, renameValue.trim())
-                                renameTarget = null
-                                reload()
-                            } catch (_: Exception) {
-                            } finally {
-                                saving = false
-                            }
-                        }
-                    },
-                    enabled = !saving && renameValue.isNotBlank(),
-                ) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
-            },
+            onDismiss = { removeTarget = null },
         )
     }
 }
 
 @Composable
-private fun DeviceCard(
+private fun TrustedDeviceContent(
     device: DeviceEntry,
-    onRename: () -> Unit,
     onTrust: (() -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
 ) {
-    AppCard {
-        Column(verticalArrangement = Arrangement.spacedBy(SyncTokens.Space3)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(SyncTokens.Space3), modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space2)) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(if (device.online) SyncTokens.Teal else Color.Gray),
+                        .background(if (device.online) SyncTokens.Teal else SyncTokens.SlateMuted),
                 )
                 Text(device.name, fontWeight = FontWeight.SemiBold)
             }
@@ -189,12 +168,12 @@ private fun DeviceCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space2)) {
-                OutlinedButton(onClick = onRename) { Text("Rename") }
-                onTrust?.let { OutlinedButton(onClick = it) { Text("Trust") } }
-                onRemove?.let { OutlinedButton(onClick = it) { Text("Remove") } }
+            if (onTrust != null || onRemove != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space2)) {
+                    onTrust?.let { GhostButton("Trust", it) }
+                    onRemove?.let { GhostButton("Remove", it) }
+                }
             }
-        }
     }
 }
 

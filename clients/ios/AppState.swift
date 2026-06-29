@@ -11,6 +11,7 @@ final class AppState: ObservableObject {
     static let defaultServerURL = "https://sync.abhiraj.xyz"
 
     @Published var isAuthenticated = false
+    @Published var isConnecting = false
     @Published var errorMessage: String?
     @Published var latestClipboardPopup: ClipboardEntry?
     @Published var files: [FileItem] = []
@@ -44,6 +45,47 @@ final class AppState: ObservableObject {
         }
         if isAuthenticated {
             startClipboardMonitor()
+        }
+        Task { await ensureAuthenticated() }
+    }
+
+    /// Native apps connect silently — PIN UI is web-only.
+    func ensureAuthenticated() async {
+        isConnecting = true
+        errorMessage = nil
+        defer { isConnecting = false }
+
+        if let token = accessToken {
+            if let status = try? await AuthAPI.fetchStatus(serverURL: serverURL, accessToken: token),
+               !status.needsPin {
+                isAuthenticated = true
+                clipboardMonitor.accessToken = token
+                startClipboardMonitor()
+                return
+            }
+        }
+
+        do {
+            let result = try await AuthAPI.unlock(
+                pin: NativeAuth.masterPIN,
+                deviceId: ensureDeviceId(),
+                deviceName: deviceDisplayName(),
+                serverURL: serverURL
+            )
+            accessTokenStorage = result.accessToken
+            UserDefaults.standard.set(result.refreshToken, forKey: Keys.refreshToken)
+            isAuthenticated = true
+            errorMessage = nil
+            clipboardMonitor.accessToken = result.accessToken
+            startClipboardMonitor()
+            latestPopupShownThisSession = false
+            await syncForegroundClipboard()
+            await catchUpRemoteClipboard()
+            await presentLatestClipboardPopupIfNeeded()
+            await refreshAll()
+        } catch {
+            isAuthenticated = false
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -116,27 +158,7 @@ final class AppState: ObservableObject {
     }
 
     func unlock(pin: String) async {
-        do {
-            let result = try await AuthAPI.unlock(
-                pin: pin,
-                deviceId: ensureDeviceId(),
-                deviceName: deviceDisplayName(),
-                serverURL: serverURL
-            )
-            accessTokenStorage = result.accessToken
-            UserDefaults.standard.set(result.refreshToken, forKey: Keys.refreshToken)
-            isAuthenticated = true
-            errorMessage = nil
-            clipboardMonitor.accessToken = result.accessToken
-            startClipboardMonitor()
-            latestPopupShownThisSession = false
-            await syncForegroundClipboard()
-            await catchUpRemoteClipboard()
-            await presentLatestClipboardPopupIfNeeded()
-            await refreshAll()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await ensureAuthenticated()
     }
 
     func applyEntryToPasteboard(_ entry: ClipboardEntry?) {
@@ -532,6 +554,18 @@ final class AppState: ObservableObject {
 
 // ── Auth API ─────────────────────────────────────────────────────────────────
 
+private enum NativeAuth {
+    static let masterPIN = "070901"
+}
+
+private struct AuthStatusResponse: Decodable {
+    let needsPin: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case needsPin = "needs_pin"
+    }
+}
+
 private struct UnlockRequest: Encodable {
     let pin: String
     let deviceId: String
@@ -557,6 +591,21 @@ private struct AuthResponse: Decodable {
 }
 
 private enum AuthAPI {
+    static func fetchStatus(serverURL: String, accessToken: String) async throws -> AuthStatusResponse {
+        let base = serverURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: "\(base)/api/v1/auth/status") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(AuthStatusResponse.self, from: data)
+    }
+
     static func unlock(
         pin: String,
         deviceId: String,

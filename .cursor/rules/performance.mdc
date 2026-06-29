@@ -1,0 +1,28 @@
+---
+description: Performance and resource usage — RAM, CPU, battery, foreground/background behavior
+globs:
+  - clients/**
+  - internal/**
+  - docs/PERFORMANCE.md
+---
+
+# Performance (SyncBridge)
+
+Read `docs/PERFORMANCE.md` before adding background work, polling, or image handling.
+
+## Must
+
+- Clipboard sync: **WebSocket push** + OS clipboard listeners — no REST polling for history.
+- List views: **thumbnails only**; fetch full content on copy/preview.
+- Background: pause LAN refresh, Local Send, and UI image decode; keep only essential sync (Android service / brief iOS WS grace).
+- Web hidden tab: **disconnect WS** and **pause** `networkService` timers.
+- Large files: **stream/chunk** — never load entire file into RAM.
+- Lazy lists with stable keys (`LazyColumn`, virtualized web lists).
+- Respect `prefers-reduced-motion` and `prefers-reduced-data` (disable blur).
+
+## Avoid
+
+- Continuous `setInterval` / timer loops when WS or events suffice.
+- Decoding full-resolution images for list thumbnails.
+- Unbounded in-memory caches (cap thumbnail object URLs ~48).
+- Heavy blur/backdrop-filter on every list row.

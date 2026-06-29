@@ -1,27 +1,25 @@
-// MainShell.swift — Matches Android MainShell.kt
+// MainShell.swift — Authenticated app shell
 
 import SwiftUI
 
 struct MainShell: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var wsClient: WSClient
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var selectedTab: MainTab = .clipboard
     @State private var settingsSubpage = "main"
     @State private var showConnMenu = false
 
     var body: some View {
-        ZStack {
-            AppBackground()
-            VStack(spacing: 0) {
-                header
-                Divider().overlay(AppSurfaces.cardBorder(colorScheme))
-                tabContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                DockBottomBar(current: selectedTab, onNavigate: navigate)
-            }
-        }
+        AppShell(
+            selectedTab: selectedTab,
+            connected: wsClient.isConnected,
+            refreshing: appState.isRefreshing,
+            onRefresh: { Task { await appState.refreshAll() } },
+            onConnectionTap: { showConnMenu = true },
+            onNavigate: navigate,
+            content: tabContent
+        )
         .onChange(of: selectedTab) { tab in
             if tab != .settings { settingsSubpage = "main" }
         }
@@ -29,26 +27,6 @@ struct MainShell: View {
             connectionSheet
                 .presentationDetents([.height(280)])
         }
-    }
-
-    private var header: some View {
-        HStack {
-            HStack(spacing: SyncTokens.space3) {
-                Image("AppLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 28, height: 28)
-                Text("SyncBridge")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-            }
-            Spacer()
-            ConnectionChip(connected: wsClient.isConnected) {
-                showConnMenu = true
-            }
-        }
-        .padding(.horizontal, SyncTokens.space4)
-        .frame(height: SyncTokens.headerHeight)
-        .background(AppSurfaces.card(colorScheme))
     }
 
     private var connectionSheet: some View {
@@ -74,20 +52,19 @@ struct MainShell: View {
         HStack {
             Text(label)
             Spacer()
-            Text(value)
-                .foregroundStyle(SyncTokens.slateSecondary)
+            Text(value).foregroundStyle(SyncTokens.textMuted)
         }
     }
 
     @ViewBuilder
-    private var tabContent: some View {
-        switch selectedTab {
-        case .clipboard:
-            HomeView(onNavigate: navigate)
-        case .pinned:
-            PinnedView()
-        case .send:
+    private func tabContent(_ tab: MainTab) -> some View {
+        switch tab {
+        case .cloudSend:
             SendView()
+        case .localSend:
+            LocalSendView()
+        case .clipboard:
+            ClipboardHubView()
         case .files:
             FilesView()
         case .settings:
@@ -100,6 +77,8 @@ struct MainShell: View {
     }
 
     private func navigate(_ tab: MainTab) {
-        selectedTab = tab
+        withAnimation(.easeOut(duration: SyncTokens.durationNormal)) {
+            selectedTab = tab
+        }
     }
 }

@@ -30,8 +30,7 @@ export function OnlineDevicesBar() {
   if (visible.length === 0) return null;
 
   return (
-    <section className="ds-trusted-devices" aria-label="Online devices">
-      <h2 className="ds-section-title">Online devices</h2>
+    <section className="ds-trusted-devices" aria-label="Trusted devices">
       <ul className="ds-trusted-devices__list">
         {visible.map((device) => (
           <li key={device.id} className="ds-trusted-devices__item">

@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.FileUploader
+import com.syncbridge.android.localsend.LocalSendManager
 import com.syncbridge.android.network.NetworkManager
 import com.syncbridge.android.sync.ClipboardSettings
 import com.syncbridge.android.sync.ClipboardSyncCoordinator
@@ -25,6 +26,9 @@ class SyncBridgeApp : Application() {
     lateinit var clipboardSettings: ClipboardSettings
         private set
 
+    lateinit var localSendManager: LocalSendManager
+        private set
+
     var pendingShareText: String? = null
     var pendingShareUris: List<Uri>? = null
 
@@ -36,6 +40,13 @@ class SyncBridgeApp : Application() {
         networkManager = NetworkManager(this, api, prefs)
         fileUploader = FileUploader(this, api, networkManager)
         clipboardSync = ClipboardSyncCoordinator(this, api, clipboardSettings)
+        localSendManager = LocalSendManager(this)
+        localSendManager.start()
+    }
+
+    override fun onTerminate() {
+        localSendManager.stop()
+        super.onTerminate()
     }
 
     companion object {

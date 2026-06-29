@@ -106,9 +106,9 @@ export function QuickSendImage() {
         )}
       </div>
 
-      {error && <p className="ds-error" style={{ marginTop: "var(--space-3)" }}>{error}</p>}
+      {error && <p className="ds-error sb-mt-3">{error}</p>}
 
-      <div className="ds-btn-group" style={{ marginTop: "var(--space-3)" }}>
+      <div className="ds-btn-group sb-mt-3">
         <AppButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} disabled={sending}>
           Choose Image
         </AppButton>

@@ -29,24 +29,18 @@ struct SettingsView: View {
                 AppCard {
                     VStack(alignment: .leading, spacing: SyncTokens.space3) {
                         Text("Automatic sync from Messages & other apps")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(SyncFont.body().weight(.semibold))
                         Text("iOS 16+ requires paste permission. The setting only appears after SyncBridge asks once.")
-                            .font(.system(size: 13))
+                            .font(SyncFont.bodySm())
                             .foregroundStyle(SyncTokens.slateSecondary)
                         Text("1. Tap “Enable paste access” below → tap Allow on the popup\n2. Then open Settings → Apps → SyncBridge → Paste from Other Apps → Allow")
-                            .font(.system(size: 13))
+                            .font(SyncFont.bodySm())
                             .foregroundStyle(SyncTokens.slateMuted)
-                        Button {
+                        PrimaryButton(text: "Enable paste access") {
                             Task { await appState.requestPasteAccess() }
-                        } label: {
-                            Text("Enable paste access")
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(SyncTokens.teal)
                         Text("Or tap Paste — works without changing Settings:")
-                            .font(.system(size: 13))
+                            .font(SyncFont.bodySm())
                             .foregroundStyle(SyncTokens.slateMuted)
                             .padding(.top, SyncTokens.space1)
                         ClipboardSyncPasteButton()
@@ -59,11 +53,11 @@ struct SettingsView: View {
                     HStack(spacing: SyncTokens.space3) {
                         Circle()
                             .fill(wsClient.isConnected ? SyncTokens.success : SyncTokens.slateMuted)
-                            .frame(width: 8, height: 8)
+                            .frame(width: SyncTokens.space2, height: SyncTokens.space2)
                         Text(wsClient.isConnected
                              ? "Connected — clipboard sync active"
                              : "Offline — reconnecting…")
-                            .font(.system(size: 14))
+                            .font(SyncFont.bodySm())
                             .foregroundStyle(SyncTokens.slateSecondary)
                     }
                 }
@@ -71,13 +65,13 @@ struct SettingsView: View {
                 AppSectionTitle(title: "About")
                 AppCard {
                     Text("SyncBridge")
-                        .font(.system(size: 17, weight: .bold))
+                        .font(SyncFont.titleLg())
                     Text("Instant clipboard sync across your devices.")
-                        .font(.system(size: 14))
+                        .font(SyncFont.bodySm())
                         .foregroundStyle(SyncTokens.slateSecondary)
                         .padding(.top, SyncTokens.space2)
                     Text("Version 1.0.0")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(SyncFont.caption())
                         .foregroundStyle(SyncTokens.slateMuted)
                         .padding(.top, SyncTokens.space3)
                 }
@@ -125,9 +119,9 @@ private struct ClipboardSettingToggle: View {
         Toggle(isOn: $isOn) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(SyncFont.body().weight(.semibold))
                 Text(subtitle)
-                    .font(.system(size: 13))
+                    .font(SyncFont.bodySm())
                     .foregroundStyle(SyncTokens.slateSecondary)
             }
         }

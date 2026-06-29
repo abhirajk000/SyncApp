@@ -30,6 +30,7 @@ struct ClipboardImageThumb: View {
             }
         }
         .task(id: entry.id) { await loadImage() }
+        .onDisappear { image = nil }
     }
 
     private func loadImage() async {
@@ -38,21 +39,14 @@ struct ClipboardImageThumb: View {
         let trimmed = entry.content.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty,
            let data = Data(base64Encoded: trimmed),
-           let img = NSImage(data: data) {
+           data.count <= 256 * 1024,
+           let img = ImageThumbDecode.decode(data) {
             image = img
             return
         }
 
         if let data = await appState.api.downloadClipboardThumbnail(entryId: entry.id),
-           let img = NSImage(data: data) {
-            image = img
-            return
-        }
-
-        if let full = try? await appState.authService.getClipboardEntry(id: entry.id),
-           !full.content.isEmpty,
-           let data = Data(base64Encoded: full.content.trimmingCharacters(in: .whitespacesAndNewlines)),
-           let img = NSImage(data: data) {
+           let img = ImageThumbDecode.decode(data) {
             image = img
         }
     }

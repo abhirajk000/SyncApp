@@ -55,6 +55,12 @@ data class AuthResult(
     val trustedUntil: String,
 )
 
+data class AuthStatus(
+    val deviceId: String,
+    val trustedUntil: String?,
+    val needsPin: Boolean,
+)
+
 data class FileInitResponse(
     val fileId: String,
     val chunkSize: Int,

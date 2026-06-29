@@ -34,7 +34,7 @@ export function PairQrPanel() {
 
   return (
     <AppCard>
-      <p className="ds-card-desc" style={{ marginTop: 0 }}>
+      <p className="ds-card-desc ds-card-desc--flush">
         Scan this QR from SyncBridge on your phone or tablet to add it to your account.
       </p>
       <div className="ds-pair-qr">

@@ -103,7 +103,7 @@ struct TrustedDevicesBar: View {
                 EmptyView()
             } else {
                 AppCard {
-                    AppSectionTitle(title: "Online devices")
+                    AppSectionTitle(title: "Trusted devices")
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: SyncTokens.space2) {
                             ForEach(visible) { device in

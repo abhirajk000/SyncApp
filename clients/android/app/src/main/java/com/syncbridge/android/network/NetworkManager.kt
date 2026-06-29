@@ -70,8 +70,16 @@ class NetworkManager(
     val state: StateFlow<NetworkSnapshot> = _state.asStateFlow()
 
     private var running = false
+    private var uiActive = false
     private var clientIp = ""
     private val knownPeerIds = mutableSetOf<String>()
+
+    fun setUiActive(active: Boolean) {
+        uiActive = active
+        if (active && running) {
+            scope.launch { refreshOnce() }
+        }
+    }
 
     fun start() {
         if (running) return
@@ -156,15 +164,15 @@ class NetworkManager(
 
     private suspend fun refreshLoop() {
         while (scope.isActive && running) {
-            refreshOnce()
-            delay(15_000)
+            if (uiActive) refreshOnce()
+            delay(if (uiActive) 15_000 else 60_000)
         }
     }
 
     private suspend fun advertiseLoop() {
         while (scope.isActive && running) {
-            delay(60_000)
-            if (!running) return
+            delay(if (uiActive) 60_000 else 300_000)
+            if (!running || !uiActive) continue
             advertiseOnce()
         }
     }

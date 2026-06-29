@@ -20,6 +20,7 @@ export function AppButton({
 }: Props) {
   const classes = [
     "ds-btn",
+    "sb-pressable",
     `ds-btn--${variant}`,
     size !== "md" ? `ds-btn--${size}` : "",
     block ? "ds-btn--block" : "",

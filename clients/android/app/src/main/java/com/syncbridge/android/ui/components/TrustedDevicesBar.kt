@@ -55,7 +55,7 @@ fun TrustedDevicesBar(
     if (visible.isEmpty()) return
 
     AppCard(modifier = modifier) {
-        AppSectionTitle("Online devices")
+        AppSectionTitle("Trusted devices")
         LazyRow(horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space2)) {
             items(visible, key = { it.id }) { device ->
                 DevicePill(device)

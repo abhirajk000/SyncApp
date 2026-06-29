@@ -114,6 +114,7 @@ class NetworkService {
   private listeners = new Set<Listener>();
   private advertiseTimer: ReturnType<typeof setInterval> | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private paused = false;
   private clientIp = "";
   /** Peers we have already announced this session — avoids toast spam. */
   private knownPeerIds = new Set<string>();
@@ -258,21 +259,49 @@ class NetworkService {
   }
 
   start() {
+    this.paused = false;
     void this.refresh();
+    this.startTimers();
+  }
+
+  /** Pause LAN polling when the tab is hidden — WS handles clipboard push. */
+  pause() {
+    this.paused = true;
+    this.stopTimers();
+  }
+
+  /** Resume polling when the tab becomes visible again. */
+  resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    void this.refresh();
+    this.startTimers();
+  }
+
+  private startTimers() {
     if (this.advertiseTimer) clearInterval(this.advertiseTimer);
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     this.advertiseTimer = setInterval(() => {
+      if (this.paused) return;
       const addrs = peerQueryAddrs(this.clientIp);
       if (addrs) void advertiseLocalAddrs([addrs], 0).catch(() => undefined);
     }, ADVERTISE_MS);
-    this.refreshTimer = setInterval(() => void this.refresh(), REFRESH_MS);
+    this.refreshTimer = setInterval(() => {
+      if (this.paused) return;
+      void this.refresh();
+    }, REFRESH_MS);
   }
 
-  stop() {
+  private stopTimers() {
     if (this.advertiseTimer) clearInterval(this.advertiseTimer);
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     this.advertiseTimer = null;
     this.refreshTimer = null;
+  }
+
+  stop() {
+    this.paused = false;
+    this.stopTimers();
     this.knownPeerIds.clear();
     this.patch({
       diagnostics: null,

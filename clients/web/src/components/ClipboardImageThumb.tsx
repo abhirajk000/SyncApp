@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchClipboardThumbnail, getCachedThumbnailUrl, cacheThumbnailBlob } from "../lib/clipboard";
+import { ImagePlaceholder } from "./ImagePlaceholder";
 
 interface Props {
   entryId: string;
@@ -30,7 +31,7 @@ export function ClipboardImageThumb({ entryId, alt = "", className = "ds-activit
   }, [entryId]);
 
   if (!src) {
-    return <span className={`${className} ds-thumb-placeholder`} aria-hidden />;
+    return <ImagePlaceholder className={className} aspectRatio="16/10" />;
   }
 
   return <img src={src} alt={alt} className={className} draggable={false} loading="lazy" />;

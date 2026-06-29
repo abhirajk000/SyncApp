@@ -4,27 +4,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
 import com.syncbridge.android.ui.theme.SyncTokens
 
 @Composable
 fun AppEmptyState(
     title: String,
     description: String,
-    icon: ImageVector = Icons.Outlined.Inbox,
+    illustration: EmptyArt = EmptyArt.Inbox,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    AppCard {
+    AppCard(hero = true) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -32,19 +29,21 @@ fun AppEmptyState(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
         ) {
-            IconBadge(icon = icon, tint = SyncTokens.Teal, modifier = Modifier.padding(bottom = SyncTokens.Space1))
+            EmptyIllustration(variant = illustration)
             Text(
                 title,
-                style = MaterialTheme.typography.titleMedium,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
+                color = SyncTokens.SlateText,
             )
             Text(
                 description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                color = SyncTokens.SlateSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = SyncTokens.Space4),
+                lineHeight = 22.sp,
             )
             if (actionLabel != null && onAction != null) {
                 PrimaryButton(text = actionLabel, onClick = onAction, modifier = Modifier.padding(top = SyncTokens.Space2))

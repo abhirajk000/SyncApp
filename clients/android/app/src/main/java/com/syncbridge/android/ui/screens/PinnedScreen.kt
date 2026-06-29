@@ -1,102 +1,111 @@
 package com.syncbridge.android.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.style.TextOverflow
 import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.ClipboardEntry
 import com.syncbridge.android.ui.components.AppEmptyState
 import com.syncbridge.android.ui.components.AppSectionTitle
-import com.syncbridge.android.ui.components.ClipboardImageThumb
-import com.syncbridge.android.ui.components.GlassListRow
+import com.syncbridge.android.ui.components.AppSurfaces
+import com.syncbridge.android.ui.components.ClipboardCard
+import com.syncbridge.android.ui.components.ContainerGroup
+import com.syncbridge.android.ui.components.EmptyArt
 import com.syncbridge.android.ui.theme.SyncTokens
-import com.syncbridge.android.util.clipboardDisplayText
 import com.syncbridge.android.util.copyEntryToClipboard
 import com.syncbridge.android.util.isImageContentType
-import com.syncbridge.android.util.relativeTime
 import kotlinx.coroutines.launch
 
+/** Web ClipboardPage / PinnedPage parity. */
 @Composable
 fun PinnedScreen(
     entries: List<ClipboardEntry>,
     api: ApiClient,
+    peerDeviceIds: Set<String> = emptySet(),
     onUnpin: (ClipboardEntry) -> Unit,
+    onDelete: (ClipboardEntry) -> Unit = {},
+    embedded: Boolean = false,
 ) {
-    val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pinned = entries.filter { it.pinned }
+    var copiedId by remember { mutableStateOf<String?>(null) }
+    val pinned = entries
+        .filter { it.pinned }
+        .sortedByDescending { it.createdAt }
 
     fun copyEntry(entry: ClipboardEntry) {
-        scope.launch { copyEntryToClipboard(context, api, entry) }
+        scope.launch {
+            runCatching { copyEntryToClipboard(context, api, entry) }
+                .onSuccess {
+                    copiedId = entry.id
+                    val msg = if (isImageContentType(entry.contentType)) "Image copied" else "Copied"
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+                .onFailure { Toast.makeText(context, "Could not copy", Toast.LENGTH_SHORT).show() }
+        }
     }
 
     LazyColumn(
         contentPadding = PaddingValues(
             start = SyncTokens.Space4,
             end = SyncTokens.Space4,
-            top = SyncTokens.Space4,
-            bottom = SyncTokens.Space10 + SyncTokens.DockHeight,
+            top = if (embedded) SyncTokens.Space2 else SyncTokens.Space4,
+            bottom = SyncTokens.DockScrollPadding,
         ),
-        verticalArrangement = Arrangement.spacedBy(SyncTokens.Space3),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(SyncTokens.Space3),
     ) {
-        item { AppSectionTitle("Pinned") }
+        if (!embedded) {
+            item { AppSectionTitle("Pinned") }
+        }
         if (pinned.isEmpty()) {
             item {
                 AppEmptyState(
-                    icon = Icons.Outlined.PushPin,
                     title = "No pinned items",
-                    description = "Pin clipboard entries to keep them synced across devices.",
+                    description = "Pin clipboard entries to keep them synced across all devices.",
+                    illustration = EmptyArt.Pinned,
                 )
             }
         } else {
-            items(pinned, key = { it.id }) { entry ->
-                GlassListRow(onClick = { copyEntry(entry) }) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            if (isImageContentType(entry.contentType)) {
-                                ClipboardImageThumb(
-                                    entry = entry,
-                                    api = api,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = SyncTokens.Space2),
-                                    contentDescription = "Pinned image",
-                                )
-                            } else {
-                                Text(
-                                    clipboardDisplayText(entry.content, 200),
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
+            item {
+                ContainerGroup {
+                    pinned.forEachIndexed { index, entry ->
+                        Column {
+                            ClipboardCard(
+                                entry = entry,
+                                api = api,
+                                transferMode = clipboardTransferMode(entry, peerDeviceIds),
+                                copied = copiedId == entry.id,
+                                embeddedInGroup = true,
+                                onCopy = { copyEntry(entry) },
+                                onDelete = { onDelete(entry) },
+                                onPin = { onUnpin(entry) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            if (index < pinned.lastIndex) {
+                                androidx.compose.material3.HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = SyncTokens.Space5),
+                                    color = AppSurfaces.cardStroke(),
                                 )
                             }
-                            Text(
-                                relativeTime(entry.createdAt),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
                         }
-                        OutlinedButton(onClick = { onUnpin(entry) }) { Text("Unpin") }
                     }
                 }
             }
         }
     }
 }
+
+private fun clipboardTransferMode(entry: ClipboardEntry, peerDeviceIds: Set<String>): String =
+    if (peerDeviceIds.contains(entry.sourceDeviceId)) "direct_lan" else "relay"

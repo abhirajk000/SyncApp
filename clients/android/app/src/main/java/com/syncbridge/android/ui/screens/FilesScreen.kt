@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -27,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +52,10 @@ import com.syncbridge.android.data.ApiClient
 import com.syncbridge.android.data.FileEntry
 import androidx.compose.material.icons.outlined.Folder
 import com.syncbridge.android.ui.components.AppEmptyState
+import com.syncbridge.android.ui.components.EmptyArt
 import com.syncbridge.android.ui.components.AppSectionTitle
+import com.syncbridge.android.ui.components.ContainerGroup
+import com.syncbridge.android.ui.components.ContainerGroupItem
 import com.syncbridge.android.ui.components.GlassListRow
 import com.syncbridge.android.ui.components.ItemActionMenu
 import com.syncbridge.android.ui.components.SurfaceCard
@@ -58,6 +64,7 @@ import com.syncbridge.android.ui.theme.SyncTokens
 import com.syncbridge.android.util.canCopyFile
 import com.syncbridge.android.util.copyFileToClipboard
 import com.syncbridge.android.util.downloadFileToDevice
+import com.syncbridge.android.util.decodeThumbnailBitmap
 import com.syncbridge.android.util.formatBytes
 import com.syncbridge.android.util.relativeTime
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +91,7 @@ fun FilesScreen(
                     start = SyncTokens.Space4,
                     end = SyncTokens.Space4,
                     top = SyncTokens.Space4,
-                    bottom = SyncTokens.Space10 + SyncTokens.DockHeight,
+                    bottom = SyncTokens.DockScrollPadding,
                 ),
             ),
     ) {
@@ -99,16 +106,18 @@ fun FilesScreen(
 
         if (filtered.isEmpty()) {
             AppEmptyState(
-                icon = Icons.Outlined.Folder,
                 title = if (tab == FileTab.Pinned) "No pinned files" else "No files yet",
-                description = "Send files from the Send tab or receive them from other devices.",
+                description = "Receive files via Local Send or from cloud sync on other devices.",
+                illustration = EmptyArt.Files,
             )
         } else if (tab == FileTab.Temporary) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
                 verticalArrangement = Arrangement.spacedBy(SyncTokens.Space4),
-                modifier = Modifier.padding(top = SyncTokens.Space3),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = SyncTokens.Space3),
             ) {
                 items(filtered, key = { it.id }) { file ->
                     FileGridCard(
@@ -120,9 +129,11 @@ fun FilesScreen(
                 }
             }
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(SyncTokens.Space2)) {
-                filtered.forEach { file ->
-                    PinnedFileRow(file, api, onTogglePin, onDelete)
+            ContainerGroup(modifier = Modifier.weight(1f)) {
+                filtered.forEachIndexed { index, file ->
+                    ContainerGroupItem(showDivider = index < filtered.lastIndex) {
+                        PinnedFileRowContent(file, api, onTogglePin, onDelete)
+                    }
                 }
             }
         }
@@ -130,7 +141,7 @@ fun FilesScreen(
 }
 
 @Composable
-private fun PinnedFileRow(
+private fun PinnedFileRowContent(
     file: FileEntry,
     api: ApiClient,
     onTogglePin: (FileEntry) -> Unit,
@@ -140,11 +151,11 @@ private fun PinnedFileRow(
     val scope = rememberCoroutineScope()
     val ready = file.status == "ready"
 
-    GlassListRow {
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
             Column(Modifier.weight(1f)) {
                 Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -172,7 +183,6 @@ private fun PinnedFileRow(
                 },
                 onPin = { onTogglePin(file) },
             )
-        }
     }
 }
 
@@ -255,13 +265,20 @@ private fun FilePreviewContent(file: FileEntry, api: ApiClient) {
             if (mime.startsWith("image/")) {
                 val bytes = api.downloadThumbnailBytes(file.id)
                     ?: if (file.totalSize <= 2 * 1024 * 1024) api.downloadFileBytes(file.id) else null
-                bytes?.let { bitmap = BitmapFactory.decodeByteArray(it, 0, it.size) }
+                bytes?.let { bitmap = decodeThumbnailBitmap(it) }
             } else if (mime.startsWith("text/") || ext in setOf("txt", "md", "csv", "json", "log")) {
                 if (file.totalSize <= 512 * 1024) {
                     val bytes = api.downloadFileBytes(file.id)
                     textPreview = String(bytes, 0, minOf(bytes.size, 4096)).take(1200)
                 }
             }
+        }
+    }
+
+    DisposableEffect(file.id) {
+        onDispose {
+            bitmap?.recycle()
+            bitmap = null
         }
     }
 

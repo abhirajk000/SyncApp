@@ -1,6 +1,13 @@
-import { Clipboard, Folder, Pin, Send, Settings, type LucideIcon } from "lucide-react";
+import {
+  Clipboard,
+  CloudUpload,
+  Folder,
+  Settings,
+  Wifi,
+  type LucideIcon,
+} from "lucide-react";
 
-export type NavId = "clipboard" | "pinned" | "send" | "files" | "settings";
+export type NavId = "cloud_send" | "local_send" | "clipboard" | "files" | "settings";
 
 interface NavItem {
   id: NavId;
@@ -9,8 +16,8 @@ interface NavItem {
 }
 
 const LEFT: NavItem[] = [
-  { id: "clipboard", label: "Clipboard", Icon: Clipboard },
-  { id: "pinned", label: "Pinned", Icon: Pin },
+  { id: "cloud_send", label: "Cloud Send", Icon: CloudUpload },
+  { id: "local_send", label: "Local Send", Icon: Wifi },
 ];
 
 const RIGHT: NavItem[] = [
@@ -52,6 +59,8 @@ function DockItem({ item, active, onNavigate }: ItemProps) {
 }
 
 export function AppBottomNav({ active, onNavigate }: Props) {
+  const clipboardActive = active === "clipboard";
+
   return (
     <nav className="ds-dock-nav" aria-label="Main navigation">
       <div className="ds-dock-nav__frame">
@@ -97,13 +106,20 @@ export function AppBottomNav({ active, onNavigate }: Props) {
 
         <button
           type="button"
-          className={`ds-dock-nav__fab ${active === "send" ? "ds-dock-nav__fab--active" : ""}`}
-          onClick={() => onNavigate("send")}
-          aria-label="Send"
-          aria-current={active === "send" ? "page" : undefined}
+          className={`ds-dock-nav__fab ds-dock-nav__fab--clipboard ${clipboardActive ? "ds-dock-nav__fab--active" : ""}`}
+          onClick={() => onNavigate("clipboard")}
+          aria-label="Clipboard"
+          aria-current={clipboardActive ? "page" : undefined}
         >
-          <span className="ds-dock-nav__fab-glow" aria-hidden />
-          <Send size={24} strokeWidth={2} />
+          <span className="ds-dock-nav__fab-glow ds-dock-nav__fab-glow--teal" aria-hidden />
+          <Clipboard size={26} strokeWidth={2} />
+          {clipboardActive && (
+            <span className="ds-dock-nav__fab-dots" aria-hidden>
+              <span />
+              <span className="ds-dock-nav__fab-dots--on" />
+              <span />
+            </span>
+          )}
         </button>
       </div>
     </nav>

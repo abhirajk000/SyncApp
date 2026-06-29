@@ -1,0 +1,132 @@
+/* AppShell — unified layout (Phase 2) */
+
+.sb-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  z-index: var(--z-base);
+}
+
+.sb-shell__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Glass top app bar */
+.sb-topbar {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-glass)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(1.35);
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  z-index: var(--z-raised);
+}
+
+.sb-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sb-topbar__title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.sb-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Scrollable content with dock clearance */
+.sb-shell__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-6);
+  padding-bottom: calc(var(--float-nav-height) + var(--space-8));
+}
+
+.sb-shell__content-inner {
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Page transitions */
+@keyframes sb-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sb-page-enter {
+  animation: sb-page-enter var(--duration-normal) var(--ease-out) both;
+}
+
+/* Floating glass bottom navigation wrapper */
+.sb-shell__nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-dock);
+  pointer-events: none;
+}
+
+.sb-shell__nav > * {
+  pointer-events: auto;
+}
+
+/* Dock item press animation */
+@keyframes sb-dock-press {
+  from { transform: scale(1); }
+  to { transform: scale(0.94); }
+}
+
+.ds-dock-nav__item:active .ds-dock-nav__pill {
+  animation: sb-dock-press var(--duration-fast) var(--ease-out);
+}
+
+.ds-dock-nav__fab:active {
+  transform: scale(0.94);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .sb-topbar {
+    padding: 0 var(--space-4);
+  }
+  .sb-shell__content {
+    padding: var(--space-4);
+    padding-bottom: calc(var(--float-nav-height) + var(--space-6));
+  }
+}
+
+@media (min-width: 1024px) {
+  .sb-shell__content-inner {
+    max-width: 960px;
+  }
+}
