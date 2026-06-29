@@ -7,6 +7,10 @@ enum MenuBarLayout {
     static let height: CGFloat = 648
     static let headerHeight: CGFloat = 64
     static let dockHeight: CGFloat = 90
+    static let dockNavHeight: CGFloat = 90
+    static let dockBarHeight: CGFloat = 64
+    static let dockFabSize: CGFloat = 64
+    static let dockFabSlotWidth: CGFloat = 76
     static let windowDefaultWidth: CGFloat = 440
     static let windowDefaultHeight: CGFloat = 720
     static let windowMinWidth: CGFloat = 380

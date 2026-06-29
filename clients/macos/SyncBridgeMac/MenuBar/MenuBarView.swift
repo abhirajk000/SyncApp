@@ -67,7 +67,10 @@ struct MenuBarView: View {
     private var mainContent: some View {
         AppShell(
             selectedTab: selectedTab,
-            connected: appState.syncStatus == .connected,
+            connected: {
+                if case .connected = appState.syncStatus { return true }
+                return false
+            }(),
             refreshing: appState.isRefreshing,
             onRefresh: { Task { await appState.refreshHome() } },
             onNavigate: { tab in

@@ -43,7 +43,7 @@ struct HomeView: View {
             rows.append(ActivityRow(id: "clip-\(entry.id)", at: entry.createdAt, kind: "Clipboard", label: label, entry: entry))
         }
         for file in appState.files where file.status == "ready" {
-            rows.append(ActivityRow(id: "file-\(file.id)", at: file.createdAt, kind: "File", label: "\(file.name) · \(formatBytes(file.size))", entry: nil))
+            rows.append(ActivityRow(id: "file-\(file.id)", at: file.createdAt, kind: "File", label: "\(file.name) · \(formatBytes(file.totalSize))", entry: nil))
         }
         return rows.sorted { clipboardDate($0.at) > clipboardDate($1.at) }.prefix(activityLimit).map { $0 }
     }
